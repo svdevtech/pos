@@ -106,6 +106,7 @@ function NewAdjustmentContent() {
           fullWidth={false}
           sx={{ width: 130 }}
           error={l.qty_delta !== '' && num(l.qty_delta) === 0}
+          inputProps={{ 'aria-label': `${t('qtyDelta')} ${l.product.name}`, 'data-testid': 'adjust-qty' }}
         />
       ),
     },

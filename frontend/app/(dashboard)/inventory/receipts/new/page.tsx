@@ -111,7 +111,16 @@ function NewReceiptContent() {
       width: 140,
       align: 'right',
       render: (l) => (
-        <MoneyField size="small" value={l.qty} onChange={(v) => updateLine(l.product.id, { qty: v })} currency={false} decimals={3} fullWidth={false} sx={{ width: 120 }} />
+        <MoneyField
+          size="small"
+          value={l.qty}
+          onChange={(v) => updateLine(l.product.id, { qty: v })}
+          currency={false}
+          decimals={3}
+          fullWidth={false}
+          sx={{ width: 120 }}
+          inputProps={{ 'aria-label': `${t('qty')} ${l.product.name}`, 'data-testid': 'receipt-qty' }}
+        />
       ),
     },
     {
@@ -120,7 +129,14 @@ function NewReceiptContent() {
       width: 160,
       align: 'right',
       render: (l) => (
-        <MoneyField size="small" value={l.unit_cost} onChange={(v) => updateLine(l.product.id, { unit_cost: v })} fullWidth={false} sx={{ width: 140 }} />
+        <MoneyField
+          size="small"
+          value={l.unit_cost}
+          onChange={(v) => updateLine(l.product.id, { unit_cost: v })}
+          fullWidth={false}
+          sx={{ width: 140 }}
+          inputProps={{ 'aria-label': `${t('unitCost')} ${l.product.name}`, 'data-testid': 'receipt-cost' }}
+        />
       ),
     },
     { key: 'total', label: tc('total'), width: 130, align: 'right', render: (l) => formatMoney(num(l.qty) * num(l.unit_cost), locale) },

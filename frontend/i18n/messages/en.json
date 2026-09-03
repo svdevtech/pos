@@ -1473,5 +1473,29 @@
       "userGuide": "User guide",
       "dividendMath": "Dividend formulas"
     }
+  },
+  "ai": {
+    "title": "AI assistant",
+    "subtitle": "Ask about your shop's data in plain language; the assistant turns it into a read-only query and summarises the answer",
+    "askTitle": "Ask a question",
+    "askHint": "For example: how much did we sell this month, or the ten best sellers",
+    "placeholder": "Type a question about the shop's data and press Enter",
+    "ask": "Ask",
+    "examples": [
+      "How much did we sell this month?",
+      "Top 10 products this month",
+      "Total outstanding receivables",
+      "Which products have negative stock?"
+    ],
+    "answerTitle": "Answer",
+    "meta": "{rows} rows · {ms} ms",
+    "truncated": "Results truncated",
+    "historyTitle": "Recent questions",
+    "rows": "{count} rows",
+    "failed": "Failed",
+    "disabledTitle": "The AI assistant is not enabled",
+    "disabledBody": "Set AI_ENABLED=true and make sure the server can reach the T-LLM gateway (see docs/DEPLOY.md section 7). This page works as soon as that is done — nothing else to change.",
+    "gatewayDown": "Enabled, but the T-LLM gateway at {url} cannot be reached — check the network or the gateway whitelist",
+    "whenEnabled": "Once enabled you can ask in plain language, e.g. \"how does this week compare with last week?\". The assistant writes a read-only query (SELECT only, capped at 200 rows, restricted to your own store), runs it and explains the result alongside the query it used."
   }
 }
