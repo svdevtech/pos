@@ -9,7 +9,7 @@ Replacement for the legacy MS Access POS (ระบบเดิม) of a Thai co
 - `frontend/` Next.js 14 App Router + TypeScript + MUI v5 (glass theme) + TanStack Query + next-intl (`i18n/messages/{th,en}.json`). Route groups `(auth)`, `(pos)`, `(dashboard)`, `(liff)`, `admin`. Browser calls `/api/v1/*`; `next.config.mjs` rewrites to `BACKEND_INTERNAL_URL`.
 - `tools/legacy-extract/extract.ps1` Windows-only extractor (Access ODBC → JSONL + manifest). `legacy-dump/` (git-ignored) holds the dump.
 - `deploy/` docker-compose stack + `tee-dev/{install,deploy,backup}.sh` for the Ubuntu test server.
-- `docs/` CONVENTIONS.md (read before adding a module), LEGACY_DATABASE_REFERENCE.md (legacy schema, column by column), MIGRATION.md, DEPLOY.md, DIVIDEND_MATH.md.
+- `docs/` CONVENTIONS.md (read before adding a module), TESTING.md (test layers + the live full-system suite), LEGACY_DATABASE_REFERENCE.md (legacy schema, column by column), MIGRATION.md, DEPLOY.md, DIVIDEND_MATH.md.
 
 ## Commands
 

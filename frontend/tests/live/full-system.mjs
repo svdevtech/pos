@@ -467,8 +467,8 @@ const main = async () => {
     await page.getByRole('button', { name: L('ar.pay'), exact: true }).first().click();
     await page.waitForTimeout(1500);
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel(L('ar.amount')).fill('10');
-    await dialog.getByRole('button', { name: L('common.save'), exact: true }).click();
+    await dialog.getByLabel(L('ar.payAmount')).fill('10');
+    await dialog.getByRole('button', { name: L('ar.receivePayment'), exact: true }).click();
     await page.waitForTimeout(3000);
     const ar = await api(page, `/ar/accounts?q=${encodeURIComponent(RUN)}`);
     const acct = (ar.body?.items ?? ar.body ?? []).find?.((a) => String(a.member_code ?? '').includes(RUN));
