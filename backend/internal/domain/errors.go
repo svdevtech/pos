@@ -118,6 +118,8 @@ var (
 	ErrAIUnsafeSQL = NewError("AI_UNSAFE_SQL", http.StatusBadRequest)
 	ErrAIUpstream  = NewError("AI_UPSTREAM", http.StatusBadGateway)
 
+	ErrConversionRuleMissing = NewError("CONVERSION_RULE_MISSING", http.StatusBadRequest)
+
 	ErrImportManifest = NewError("IMPORT_MANIFEST_INVALID", http.StatusBadRequest)
 
 	// data operations started from the UI (backup / restore / legacy import)

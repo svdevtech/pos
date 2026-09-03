@@ -21,6 +21,7 @@ type ProductService interface {
 	CreateCategory(ctx context.Context, actor productuc.Actor, storeID uuid.UUID, in productuc.CategoryInput) (*domain.Category, error)
 	UpdateCategory(ctx context.Context, actor productuc.Actor, storeID, id uuid.UUID, in productuc.CategoryInput) (*domain.Category, error)
 	ListUnits(ctx context.Context, storeID uuid.UUID) ([]domain.Unit, error)
+	UpdateUnit(ctx context.Context, actor productuc.Actor, storeID, id uuid.UUID, in productuc.UnitPatch) (*domain.Unit, error)
 	CreateUnit(ctx context.Context, actor productuc.Actor, storeID uuid.UUID, in productuc.UnitInput) (*domain.Unit, error)
 	ListSuppliers(ctx context.Context, storeID uuid.UUID, q string) ([]domain.Supplier, error)
 	GetSupplier(ctx context.Context, storeID, id uuid.UUID) (*domain.Supplier, error)
@@ -170,6 +171,21 @@ func (s *Server) mountProducts(r chi.Router) {
 		}
 		out, err := s.Product.CreateUnit(r.Context(), productActor(r), storeID(r), in)
 		respondCreated(w, r, out, err)
+	})
+
+	r.With(manage).Patch("/units/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuidParam(r, "id")
+		if err != nil {
+			fail(w, r, err)
+			return
+		}
+		var in productuc.UnitPatch
+		if err := decode(r, &in); err != nil {
+			fail(w, r, err)
+			return
+		}
+		out, err := s.Product.UpdateUnit(r.Context(), productActor(r), storeID(r), id, in)
+		respond(w, r, out, err)
 	})
 
 	// ---- suppliers ----

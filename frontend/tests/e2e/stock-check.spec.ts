@@ -9,6 +9,7 @@ const STORE_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const PRODUCT_ID = '33333333-3333-4333-8333-333333333333';
 const TAKE_ID = '44444444-4444-4444-8444-444444444444';
+const BOTTLE_ID = '55555555-5555-4555-8555-555555555555';
 const BARCODE = '8850001234567';
 
 const session = {
@@ -48,10 +49,25 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({ stat
 interface Captured {
   takes: unknown[];
   counts: unknown[];
+  adjustments: unknown[];
+  conversions: unknown[];
 }
 
-async function mockApi(page: Page, opts: { openTake?: boolean } = {}): Promise<Captured> {
-  const captured: Captured = { takes: [], counts: [] };
+/** 1 pack of this product becomes 12 loose ones. */
+const conversionRule = {
+  id: 'r1',
+  from_product_id: PRODUCT_ID,
+  from_name: 'น้ำดื่ม 600ml (ลัง)',
+  from_unit: 'ลัง',
+  to_product_id: BOTTLE_ID,
+  to_name: 'น้ำดื่ม 600ml',
+  to_unit: 'ขวด',
+  factor: '12',
+  is_active: true,
+};
+
+async function mockApi(page: Page, opts: { openTake?: boolean; rule?: boolean } = {}): Promise<Captured> {
+  const captured: Captured = { takes: [], counts: [], adjustments: [], conversions: [] };
   const take = { id: TAKE_ID, doc_no: 'ST6909-00001', status: 'open', started_at: '2026-09-03T02:00:00Z', line_count: 0 };
 
   await page.route('**/api/v1/**', (route) => json(route, { error: { code: 'NOT_FOUND', message: 'not found' } }, 404));
@@ -72,6 +88,15 @@ async function mockApi(page: Page, opts: { openTake?: boolean } = {}): Promise<C
   await page.route(`**/api/v1/inventory/stock-takes/${TAKE_ID}/lines`, (route) => {
     captured.counts.push(route.request().postDataJSON());
     return json(route, { ...take, line_count: 1, lines: [] });
+  });
+  await page.route('**/api/v1/inventory/conversion-rules*', (route) => json(route, opts.rule ? [conversionRule] : []));
+  await page.route('**/api/v1/inventory/conversions*', (route) => {
+    captured.conversions.push(route.request().postDataJSON());
+    return json(route, { id: 'cv1', doc_no: 'CV6909-00001', to_qty: '24', to_unit: 'ขวด', converted_at: '2026-09-03T11:00:00Z' }, 201);
+  });
+  await page.route('**/api/v1/inventory/adjustments', (route) => {
+    captured.adjustments.push(route.request().postDataJSON());
+    return json(route, { id: 'adj1', doc_no: 'ADJ6909-00001' }, 201);
   });
   return captured;
 }
@@ -137,5 +162,45 @@ test.describe('stock check', () => {
     await expect.poll(() => captured.takes.length).toBe(1);
     // empty = only the items actually scanned end up on the sheet, not all 6,600 products
     expect(captured.takes[0]).toMatchObject({ empty: true });
+  });
+
+  test('a wrong quantity can be corrected on the spot', async ({ page }) => {
+    const captured = await mockApi(page, { openTake: true });
+    await page.goto('/inventory/check');
+
+    const scan = page.getByTestId('check-scan');
+    await scan.fill(BARCODE);
+    await scan.press('Enter');
+    await expect(page.getByTestId('check-stock')).toHaveText('24');
+
+    await page.getByTestId('check-count-mode').click();
+    await page.getByTestId('check-counted').fill('20');
+    await page.getByTestId('check-fix-stock').click();
+
+    await expect.poll(() => captured.adjustments.length).toBe(1);
+    expect(captured.adjustments[0]).toMatchObject({
+      reason: 'correction',
+      lines: [{ product_id: PRODUCT_ID, qty_delta: '-4.000', note: '' }],
+    });
+    // the card shows the corrected figure without a rescan
+    await expect(page.getByTestId('check-stock')).toHaveText('20');
+  });
+
+  test('a pack can be broken into loose units from the aisle', async ({ page }) => {
+    const captured = await mockApi(page, { rule: true });
+    await page.goto('/inventory/check');
+
+    const scan = page.getByTestId('check-scan');
+    await scan.fill(BARCODE);
+    await scan.press('Enter');
+    await expect(page.getByTestId('check-convert')).toBeVisible();
+
+    await page.getByTestId('check-convert-qty').fill('2');
+    await expect(page.getByTestId('check-convert')).toContainText('24'); // 2 x 12
+    await page.getByTestId('check-convert-post').click();
+
+    await expect.poll(() => captured.conversions.length).toBe(1);
+    expect(captured.conversions[0]).toEqual({ from_product_id: PRODUCT_ID, to_product_id: BOTTLE_ID, from_qty: '2' });
+    await expect(page.getByTestId('check-stock')).toHaveText('22'); // 24 - 2 packs
   });
 });

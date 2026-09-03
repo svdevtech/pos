@@ -21,11 +21,14 @@ type Category struct {
 
 // Unit is a unit of measure (piece, box, kg, ...).
 type Unit struct {
-	ID        uuid.UUID `json:"id"`
-	StoreID   uuid.UUID `json:"-"`
-	Name      string    `json:"name"`
-	NameEN    string    `json:"name_en,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID       uuid.UUID `json:"id"`
+	StoreID  uuid.UUID `json:"-"`
+	Name     string    `json:"name"`
+	NameEN   string    `json:"name_en,omitempty"`
+	IsActive bool      `json:"is_active"`
+	// ProductCount is filled by List so the UI can warn before a unit still in use is deactivated.
+	ProductCount int       `json:"product_count"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type Supplier struct {

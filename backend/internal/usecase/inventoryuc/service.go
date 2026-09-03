@@ -34,6 +34,7 @@ type Service struct {
 	receipts    postgres.ReceiptRepo
 	adjustments postgres.AdjustmentRepo
 	takes       postgres.StockTakeRepo
+	conversions postgres.ConversionRepo
 	audit       postgres.AuditRepo
 }
 

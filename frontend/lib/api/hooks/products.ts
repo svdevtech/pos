@@ -22,6 +22,9 @@ export interface Unit {
   id: string;
   name: string;
   name_en?: string;
+  is_active: boolean;
+  /** How many products still use this unit (shown before it is switched off). */
+  product_count: number;
   created_at?: string;
 }
 
@@ -263,6 +266,16 @@ export function useCreateUnit() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; name_en?: string }) => api.post<Unit>('/units', input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: productKeys.units }),
+  });
+}
+
+/** Renames a unit or switches it off — units are never deleted, so old documents keep their unit. */
+export function useUpdateUnit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name?: string; name_en?: string; is_active?: boolean }) =>
+      api.patch<Unit>(`/units/${id}`, patch),
     onSuccess: () => void qc.invalidateQueries({ queryKey: productKeys.units }),
   });
 }

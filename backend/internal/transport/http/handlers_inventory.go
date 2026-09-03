@@ -28,6 +28,13 @@ type InventoryService interface {
 	FinalizeStockTake(ctx context.Context, actor inventoryuc.Actor, storeID, id uuid.UUID) (*inventoryuc.StockTakeView, error)
 	ListStockTakes(ctx context.Context, storeID uuid.UUID, limit, offset int) ([]domain.StockTake, int64, error)
 	GetStockTake(ctx context.Context, storeID, id uuid.UUID) (*inventoryuc.StockTakeView, error)
+	ListConversionRules(ctx context.Context, storeID uuid.UUID, activeOnly bool) ([]domain.ProductConversion, error)
+	ConversionRulesFrom(ctx context.Context, storeID, productID uuid.UUID) ([]domain.ProductConversion, error)
+	SaveConversionRule(ctx context.Context, actor inventoryuc.Actor, storeID uuid.UUID, in inventoryuc.ConversionRuleInput) (*domain.ProductConversion, error)
+	SetConversionRuleActive(ctx context.Context, actor inventoryuc.Actor, storeID, id uuid.UUID, active bool) (*domain.ProductConversion, error)
+	PostConversion(ctx context.Context, actor inventoryuc.Actor, storeID uuid.UUID, in inventoryuc.ConversionInput) (*domain.StockConversion, error)
+	ListConversions(ctx context.Context, storeID uuid.UUID, limit, offset int) ([]domain.StockConversion, int64, error)
+	GetConversion(ctx context.Context, storeID, id uuid.UUID) (*domain.StockConversion, error)
 }
 
 func inventoryActor(r *http.Request) inventoryuc.Actor { return inventoryuc.Actor(actorOf(r)) }
@@ -157,6 +164,75 @@ func (s *Server) mountInventory(r chi.Router) {
 					return
 				}
 				out, err := s.Inventory.GetAdjustment(r.Context(), storeID(r), id)
+				respond(w, r, out, err)
+			})
+		})
+
+		// ---- unit conversions (1 ลัง -> 12 ขวด) ----
+		r.Route("/conversions", func(r chi.Router) {
+			r.With(read).Get("/", func(w http.ResponseWriter, r *http.Request) {
+				page, size := paging(r)
+				items, total, err := s.Inventory.ListConversions(r.Context(), storeID(r), size, (page-1)*size)
+				if err != nil {
+					fail(w, r, err)
+					return
+				}
+				ok(w, Page[domain.StockConversion]{Items: items, Total: total, Page: page, PageSize: size})
+			})
+			r.With(manage).Post("/", func(w http.ResponseWriter, r *http.Request) {
+				var in inventoryuc.ConversionInput
+				if err := decode(r, &in); err != nil {
+					fail(w, r, err)
+					return
+				}
+				out, err := s.Inventory.PostConversion(r.Context(), inventoryActor(r), storeID(r), in)
+				respondCreated(w, r, out, err)
+			})
+			r.With(read).Get("/{id}", func(w http.ResponseWriter, r *http.Request) {
+				id, err := uuidParam(r, "id")
+				if err != nil {
+					fail(w, r, err)
+					return
+				}
+				out, err := s.Inventory.GetConversion(r.Context(), storeID(r), id)
+				respond(w, r, out, err)
+			})
+		})
+
+		r.Route("/conversion-rules", func(r chi.Router) {
+			r.With(read).Get("/", func(w http.ResponseWriter, r *http.Request) {
+				activeOnly := queryStr(r, "active") == "true"
+				if pid, err := parseQueryUUID(r, "from_product_id"); err == nil && pid != nil {
+					out, err := s.Inventory.ConversionRulesFrom(r.Context(), storeID(r), *pid)
+					respond(w, r, out, err)
+					return
+				}
+				out, err := s.Inventory.ListConversionRules(r.Context(), storeID(r), activeOnly)
+				respond(w, r, out, err)
+			})
+			r.With(manage).Post("/", func(w http.ResponseWriter, r *http.Request) {
+				var in inventoryuc.ConversionRuleInput
+				if err := decode(r, &in); err != nil {
+					fail(w, r, err)
+					return
+				}
+				out, err := s.Inventory.SaveConversionRule(r.Context(), inventoryActor(r), storeID(r), in)
+				respondCreated(w, r, out, err)
+			})
+			r.With(manage).Patch("/{id}", func(w http.ResponseWriter, r *http.Request) {
+				id, err := uuidParam(r, "id")
+				if err != nil {
+					fail(w, r, err)
+					return
+				}
+				var in struct {
+					IsActive bool `json:"is_active"`
+				}
+				if err := decode(r, &in); err != nil {
+					fail(w, r, err)
+					return
+				}
+				out, err := s.Inventory.SetConversionRuleActive(r.Context(), inventoryActor(r), storeID(r), id, in.IsActive)
 				respond(w, r, out, err)
 			})
 		})

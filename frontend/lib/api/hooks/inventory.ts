@@ -332,3 +332,106 @@ export function useFinalizeStockTake(id: string) {
     onSuccess: invalidate,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Unit conversions (1 ลัง -> 12 ขวด)
+// ---------------------------------------------------------------------------
+
+export interface ConversionRule {
+  id: string;
+  from_product_id: string;
+  from_sku?: string;
+  from_name?: string;
+  from_unit?: string;
+  from_stock?: Dec;
+  to_product_id: string;
+  to_sku?: string;
+  to_name?: string;
+  to_unit?: string;
+  to_stock?: Dec;
+  factor: Dec;
+  is_active: boolean;
+  note?: string;
+}
+
+export interface StockConversion {
+  id: string;
+  doc_no: string;
+  from_product_id: string;
+  from_name?: string;
+  from_unit?: string;
+  to_product_id: string;
+  to_name?: string;
+  to_unit?: string;
+  from_qty: Dec;
+  to_qty: Dec;
+  factor: Dec;
+  unit_cost: Dec;
+  total_cost: Dec;
+  note?: string;
+  converted_at: string;
+  created_by_name?: string;
+}
+
+export interface ConversionInput {
+  from_product_id: string;
+  to_product_id: string;
+  from_qty: string;
+  factor?: string;
+  note?: string;
+  save_rule?: boolean;
+}
+
+export const conversionKeys = {
+  rules: (from?: string) => ['inventory', 'conversion-rules', from ?? 'all'] as const,
+  docs: (params: ListParams) => ['inventory', 'conversions', params] as const,
+};
+
+export function useConversionRules(fromProductId?: string | null) {
+  return useQuery({
+    queryKey: conversionKeys.rules(fromProductId ?? undefined),
+    queryFn: () =>
+      api.get<ConversionRule[]>(`/inventory/conversion-rules${fromProductId ? qs({ from_product_id: fromProductId }) : ''}`),
+    staleTime: 60_000,
+  });
+}
+
+export function useConversions(params: ListParams) {
+  return useQuery({
+    queryKey: conversionKeys.docs(params),
+    queryFn: () => api.get<Page<StockConversion>>(`/inventory/conversions${qs({ ...params, page: params.page ?? 1, page_size: params.page_size ?? 20 })}`),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSaveConversionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { from_product_id: string; to_product_id: string; factor: string; note?: string; is_active?: boolean }) =>
+      api.post<ConversionRule>('/inventory/conversion-rules', input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['inventory', 'conversion-rules'] }),
+  });
+}
+
+export function useSetConversionRuleActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      api.patch<ConversionRule>(`/inventory/conversion-rules/${id}`, { is_active }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['inventory', 'conversion-rules'] }),
+  });
+}
+
+/** Posts the CV document: packs leave stock, loose units arrive with the cost carried across. */
+export function usePostConversion() {
+  const invalidate = useInvalidateInventory();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConversionInput) => api.post<StockConversion>('/inventory/conversions', input),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['inventory', 'conversions'] });
+      void qc.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}

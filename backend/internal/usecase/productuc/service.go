@@ -135,6 +135,13 @@ type UnitInput struct {
 	NameEN string `json:"name_en"`
 }
 
+// UnitPatch updates a unit; deleting one means clearing IsActive (products keep their history).
+type UnitPatch struct {
+	Name     *string `json:"name"`
+	NameEN   *string `json:"name_en"`
+	IsActive *bool   `json:"is_active"`
+}
+
 func (s *Service) ListUnits(ctx context.Context, storeID uuid.UUID) ([]domain.Unit, error) {
 	var out []domain.Unit
 	err := s.tx(ctx, storeID, func(ctx context.Context) (err error) {
@@ -159,6 +166,39 @@ func (s *Service) CreateUnit(ctx context.Context, actor Actor, storeID uuid.UUID
 		return nil, err
 	}
 	return &u, nil
+}
+
+// UpdateUnit renames a unit or switches it off. A unit still used by products can be switched off:
+// those products keep showing it, but it disappears from the pickers.
+func (s *Service) UpdateUnit(ctx context.Context, actor Actor, storeID, id uuid.UUID, in UnitPatch) (*domain.Unit, error) {
+	var out *domain.Unit
+	err := s.tx(ctx, storeID, func(ctx context.Context) error {
+		cur, err := s.units.Get(ctx, storeID, id)
+		if err != nil {
+			return err
+		}
+		u := *cur
+		if in.Name != nil {
+			if strings.TrimSpace(*in.Name) == "" {
+				return domain.ErrValidation.With("field", "name")
+			}
+			u.Name = strings.TrimSpace(*in.Name)
+		}
+		if in.NameEN != nil {
+			u.NameEN = strings.TrimSpace(*in.NameEN)
+		}
+		if in.IsActive != nil {
+			u.IsActive = *in.IsActive
+		}
+		if err := s.units.Update(ctx, &u); err != nil {
+			return err
+		}
+		if out, err = s.units.Get(ctx, storeID, id); err != nil {
+			return err
+		}
+		return s.auditWrite(ctx, actor, storeID, "unit.update", "unit", id, cur, out)
+	})
+	return out, err
 }
 
 // ---- suppliers ----------------------------------------------------------------

@@ -80,8 +80,12 @@ func (CategoryRepo) Update(ctx context.Context, c *domain.Category) error {
 
 type UnitRepo struct{}
 
+// List returns every unit with how many products use it (inactive ones included: they are still
+// shown on the settings screen so they can be switched back on).
 func (UnitRepo) List(ctx context.Context, storeID uuid.UUID) ([]domain.Unit, error) {
-	rows, err := Q(ctx).Query(ctx, `SELECT id, store_id, name, COALESCE(name_en,''), created_at FROM units WHERE store_id=$1 ORDER BY name`, storeID)
+	rows, err := Q(ctx).Query(ctx, `SELECT u.id, u.store_id, u.name, COALESCE(u.name_en,''), u.is_active, u.created_at,
+			(SELECT count(*) FROM products p WHERE p.unit_id = u.id AND NOT p.is_archived)
+		FROM units u WHERE u.store_id=$1 ORDER BY u.is_active DESC, u.name`, storeID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +93,7 @@ func (UnitRepo) List(ctx context.Context, storeID uuid.UUID) ([]domain.Unit, err
 	out := []domain.Unit{}
 	for rows.Next() {
 		var u domain.Unit
-		if err := rows.Scan(&u.ID, &u.StoreID, &u.Name, &u.NameEN, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.StoreID, &u.Name, &u.NameEN, &u.IsActive, &u.CreatedAt, &u.ProductCount); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -97,11 +101,38 @@ func (UnitRepo) List(ctx context.Context, storeID uuid.UUID) ([]domain.Unit, err
 	return out, rows.Err()
 }
 
+func (UnitRepo) Get(ctx context.Context, storeID, id uuid.UUID) (*domain.Unit, error) {
+	var u domain.Unit
+	err := Q(ctx).QueryRow(ctx, `SELECT u.id, u.store_id, u.name, COALESCE(u.name_en,''), u.is_active, u.created_at,
+			(SELECT count(*) FROM products p WHERE p.unit_id = u.id AND NOT p.is_archived)
+		FROM units u WHERE u.store_id=$1 AND u.id=$2`, storeID, id).
+		Scan(&u.ID, &u.StoreID, &u.Name, &u.NameEN, &u.IsActive, &u.CreatedAt, &u.ProductCount)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func (UnitRepo) Create(ctx context.Context, u *domain.Unit) error {
-	err := Q(ctx).QueryRow(ctx, `INSERT INTO units (store_id, name, name_en) VALUES ($1,$2,NULLIF($3,'')) RETURNING id, created_at`,
-		u.StoreID, u.Name, u.NameEN).Scan(&u.ID, &u.CreatedAt)
+	err := Q(ctx).QueryRow(ctx, `INSERT INTO units (store_id, name, name_en) VALUES ($1,$2,NULLIF($3,'')) RETURNING id, is_active, created_at`,
+		u.StoreID, u.Name, u.NameEN).Scan(&u.ID, &u.IsActive, &u.CreatedAt)
 	if isUniqueViolation(err) {
 		return domain.ErrConflict.With("field", "name")
+	}
+	return err
+}
+
+func (UnitRepo) Update(ctx context.Context, u *domain.Unit) error {
+	tag, err := Q(ctx).Exec(ctx, `UPDATE units SET name=$3, name_en=NULLIF($4,''), is_active=$5 WHERE store_id=$1 AND id=$2`,
+		u.StoreID, u.ID, u.Name, u.NameEN, u.IsActive)
+	if isUniqueViolation(err) {
+		return domain.ErrConflict.With("field", "name")
+	}
+	if err == nil && tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
 	}
 	return err
 }

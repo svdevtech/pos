@@ -309,7 +309,8 @@ export default function ProductForm({ mode, product, submitting, error, onSubmit
                   label={t('unit')}
                   value={field.value}
                   onChange={field.onChange}
-                  options={units.data ?? []}
+                  // switched-off units stay on the products that already use them, but are not offered
+                  options={(units.data ?? []).filter((u) => u.is_active || u.id === field.value)}
                   loading={units.isPending}
                   disabled={readOnly}
                   createTitle={t('addUnit')}

@@ -454,3 +454,21 @@ test.describe('POS camera scanning', () => {
       .toBeGreaterThan(0);
   });
 });
+
+test.describe('POS toolbar', () => {
+  test('the settings shortcut is there for a manager and hidden from a cashier', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/pos');
+    await expect(page.getByTestId('scan-input')).toBeVisible();
+    await expect(page.getByTestId('pos-settings')).toHaveCount(0); // the session above is a cashier
+
+    await page.addInitScript((value) => window.localStorage.setItem('pos.session', JSON.stringify(value)), {
+      ...session,
+      user: { ...session.user, role: 'store_owner' },
+    });
+    await page.reload();
+    await expect(page.getByTestId('pos-settings')).toBeVisible();
+    await page.getByTestId('pos-settings').click();
+    await expect(page).toHaveURL(/\/settings$/);
+  });
+});

@@ -3,6 +3,8 @@
 import HistoryIcon from '@mui/icons-material/History';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import SaveIcon from '@mui/icons-material/Save';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import TuneIcon from '@mui/icons-material/Tune';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
@@ -27,7 +29,14 @@ import { cameraSupported } from '@/lib/pos/barcodeCamera';
 import { resolveLocale } from '@/i18n/config';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import { decStr, num } from '@/lib/api/hooks/common';
-import { useCreateStockTake, useSaveCounts, useStockTakes } from '@/lib/api/hooks/inventory';
+import {
+  useConversionRules,
+  useCreateStockTake,
+  usePostAdjustment,
+  usePostConversion,
+  useSaveCounts,
+  useStockTakes,
+} from '@/lib/api/hooks/inventory';
 import { useProduct } from '@/lib/api/hooks/products';
 import { MUTATING_ROLES } from '@/lib/auth/session';
 import { formatMoney, formatQty } from '@/lib/format';
@@ -74,6 +83,15 @@ function StockCheckContent() {
   const openTakes = (takes.data?.items ?? []).filter((s) => s.status === 'open');
   const createTake = useCreateStockTake();
   const saveCounts = useSaveCounts(takeId);
+  const adjust = usePostAdjustment();
+
+  // what this item can be broken into (เบียร์ 1 ลัง -> 12 ขวด)
+  const rules = useConversionRules(current?.id);
+  const convert = usePostConversion();
+  const [convertQty, setConvertQty] = useState('');
+  const [convertRuleId, setConvertRuleId] = useState('');
+  const activeRules = (rules.data ?? []).filter((r) => r.is_active);
+  const chosenRule = activeRules.find((r) => r.id === convertRuleId) ?? activeRules[0];
 
   useEffect(() => setCamera(cameraSupported()), []);
   useEffect(() => {
@@ -138,6 +156,47 @@ function StockCheckContent() {
         onSuccess: (s) => {
           setTakeId(s.id);
           toast.success(t('takeCreated', { doc: s.doc_no }));
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
+  };
+
+  /** Writes the difference straight into an ADJ document — for when the shelf simply disagrees. */
+  const fixStock = () => {
+    if (!current || counted === '') return;
+    const delta = Number(counted) - current.stock;
+    if (!Number.isFinite(delta) || delta === 0) return;
+    adjust.mutate(
+      {
+        reason: 'correction',
+        note: t('adjustNote'),
+        lines: [{ product_id: current.id, qty_delta: decStr(String(delta), 3), note: '' }],
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('stockFixed', { name: current.name, qty: formatQty(Number(counted), locale) }));
+          setCurrent({ ...current, stock: Number(counted) });
+          setRecent((r) => r.map((x) => (x.id === current.id ? { ...x, stock: Number(counted) } : x)));
+          setCounted('');
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
+  };
+
+  /** Breaks packs into loose units without leaving the aisle. */
+  const runConvert = () => {
+    if (!current || !chosenRule || convertQty === '') return;
+    convert.mutate(
+      { from_product_id: current.id, to_product_id: chosenRule.to_product_id, from_qty: convertQty },
+      {
+        onSuccess: (doc) => {
+          toast.success(t('converted', { qty: formatQty(num(doc.to_qty), locale), unit: doc.to_unit ?? '' }));
+          setConvertQty('');
+          const left = current.stock - Number(convertQty);
+          setCurrent({ ...current, stock: left });
+          setRecent((r) => r.map((x) => (x.id === current.id ? { ...x, stock: left } : x)));
         },
         onError: (e) => toast.error(errorMessage(e)),
       },
@@ -263,15 +322,78 @@ function StockCheckContent() {
                         : t('variance', { qty: formatQty(Math.abs(variance), locale), dir: variance > 0 ? t('over') : t('short') })
                     }
                   />
-                  <GlassButton
-                    startIcon={<SaveIcon />}
-                    onClick={saveCount}
-                    disabled={!takeId || counted === ''}
-                    loading={saveCounts.isPending}
-                    data-testid="check-save-count"
-                  >
-                    {t('saveCount')}
-                  </GlassButton>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <GlassButton
+                      startIcon={<SaveIcon />}
+                      onClick={saveCount}
+                      disabled={!takeId || counted === ''}
+                      loading={saveCounts.isPending}
+                      data-testid="check-save-count"
+                    >
+                      {t('saveCount')}
+                    </GlassButton>
+                    <GlassButton
+                      variant="outlined"
+                      startIcon={<TuneIcon />}
+                      onClick={fixStock}
+                      disabled={counted === '' || Number(counted) === current.stock}
+                      loading={adjust.isPending}
+                      data-testid="check-fix-stock"
+                    >
+                      {t('fixStock')}
+                    </GlassButton>
+                  </Stack>
+                </Stack>
+              </>
+            )}
+            {canCount && activeRules.length > 0 && (
+              <>
+                <Divider />
+                <Stack spacing={1} data-testid="check-convert">
+                  <Typography variant="subtitle2">{t('convertTitle')}</Typography>
+                  {activeRules.length > 1 && (
+                    <GlassInput
+                      select
+                      label={t('convertTo')}
+                      value={chosenRule?.id ?? ''}
+                      onChange={(e) => setConvertRuleId(e.target.value)}
+                    >
+                      {activeRules.map((r) => (
+                        <MenuItem key={r.id} value={r.id}>
+                          {r.to_name} ({r.to_unit})
+                        </MenuItem>
+                      ))}
+                    </GlassInput>
+                  )}
+                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                    <GlassInput
+                      label={t('convertQty')}
+                      value={convertQty}
+                      onChange={(e) => setConvertQty(e.target.value)}
+                      inputProps={{ inputMode: 'decimal', 'data-testid': 'check-convert-qty' }}
+                      helperText={
+                        chosenRule && convertQty !== ''
+                          ? t('convertPreview', {
+                              qty: formatQty(Number(convertQty) * num(chosenRule.factor), locale),
+                              unit: chosenRule.to_unit ?? '',
+                            })
+                          : chosenRule
+                            ? t('convertRule', { factor: String(num(chosenRule.factor)), unit: chosenRule.to_unit ?? '' })
+                            : undefined
+                      }
+                      sx={{ maxWidth: 170 }}
+                    />
+                    <GlassButton
+                      startIcon={<SwapHorizIcon />}
+                      onClick={runConvert}
+                      disabled={convertQty === '' || Number(convertQty) <= 0 || Number(convertQty) > current.stock}
+                      loading={convert.isPending}
+                      sx={{ mt: 1 }}
+                      data-testid="check-convert-post"
+                    >
+                      {t('convert')}
+                    </GlassButton>
+                  </Stack>
                 </Stack>
               </>
             )}

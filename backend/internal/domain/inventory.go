@@ -27,6 +27,8 @@ const (
 	RefAdjustment = "stock_adjustment"
 	RefStockTake  = "stock_take"
 	RefProduct    = "product"
+	// unit conversion: transfer_out on the pack, transfer_in on the loose units
+	RefConversion = "stock_conversion"
 )
 
 // Receipt statuses (enum receipt_status).
@@ -125,4 +127,53 @@ type Valuation struct {
 	Units       decimal.Decimal `json:"units"`
 	CostValue   decimal.Decimal `json:"cost_value"`
 	RetailValue decimal.Decimal `json:"retail_value"`
+}
+
+// ---------------------------------------------------------------------------
+// Unit conversion (แปลงหน่วย): 1 ลัง -> 12 ขวด
+// ---------------------------------------------------------------------------
+
+// ProductConversion is the standing rule "one FromProduct yields Factor of ToProduct".
+type ProductConversion struct {
+	ID            uuid.UUID       `json:"id"`
+	StoreID       uuid.UUID       `json:"-"`
+	FromProductID uuid.UUID       `json:"from_product_id"`
+	FromSKU       string          `json:"from_sku,omitempty"`
+	FromName      string          `json:"from_name,omitempty"`
+	FromUnit      string          `json:"from_unit,omitempty"`
+	FromStock     decimal.Decimal `json:"from_stock,omitempty"`
+	ToProductID   uuid.UUID       `json:"to_product_id"`
+	ToSKU         string          `json:"to_sku,omitempty"`
+	ToName        string          `json:"to_name,omitempty"`
+	ToUnit        string          `json:"to_unit,omitempty"`
+	ToStock       decimal.Decimal `json:"to_stock,omitempty"`
+	Factor        decimal.Decimal `json:"factor"`
+	IsActive      bool            `json:"is_active"`
+	Note          string          `json:"note,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+// StockConversion is one posted conversion document (CV…).
+type StockConversion struct {
+	ID            uuid.UUID       `json:"id"`
+	StoreID       uuid.UUID       `json:"-"`
+	DocNo         string          `json:"doc_no"`
+	FromProductID uuid.UUID       `json:"from_product_id"`
+	FromSKU       string          `json:"from_sku,omitempty"`
+	FromName      string          `json:"from_name,omitempty"`
+	FromUnit      string          `json:"from_unit,omitempty"`
+	ToProductID   uuid.UUID       `json:"to_product_id"`
+	ToSKU         string          `json:"to_sku,omitempty"`
+	ToName        string          `json:"to_name,omitempty"`
+	ToUnit        string          `json:"to_unit,omitempty"`
+	FromQty       decimal.Decimal `json:"from_qty"`
+	ToQty         decimal.Decimal `json:"to_qty"`
+	Factor        decimal.Decimal `json:"factor"`
+	UnitCost      decimal.Decimal `json:"unit_cost"`
+	TotalCost     decimal.Decimal `json:"total_cost"`
+	Note          string          `json:"note,omitempty"`
+	ConvertedAt   time.Time       `json:"converted_at"`
+	CreatedBy     *uuid.UUID      `json:"created_by,omitempty"`
+	CreatedByName string          `json:"created_by_name,omitempty"`
 }

@@ -6,6 +6,7 @@ import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PrintIcon from '@mui/icons-material/Print';
+import SettingsIcon from '@mui/icons-material/Settings';
 import RestoreIcon from '@mui/icons-material/Restore';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import Box from '@mui/material/Box';
@@ -103,6 +104,7 @@ export default function PosPage() {
   const qc = useQueryClient();
   const { hasRole } = useSession();
   const canCancel = hasRole(...MUTATING_ROLES);
+  const canManage = canCancel; // manager/owner: cancelling bills and reaching the settings screens
 
   // ----- cart state --------------------------------------------------------
   const [cart, setCart] = useState<CartState>(emptyCart);
@@ -524,6 +526,20 @@ export default function PosPage() {
             {t('openDrawer')}
           </GlassButton>
         </Tooltip>
+        {canManage && (
+          <Tooltip title={t('goToSettings')}>
+            <GlassButton
+              variant="outlined"
+              size="small"
+              startIcon={<SettingsIcon />}
+              component={Link}
+              href="/settings"
+              data-testid="pos-settings"
+            >
+              {t('settings')}
+            </GlassButton>
+          </Tooltip>
+        )}
       </Stack>
 
       {/* Main two-column area */}

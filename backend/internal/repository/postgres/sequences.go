@@ -17,10 +17,12 @@ const (
 	DocStockTake  = "stocktake"  // ST6602-00001
 	DocARPayment  = "arpay"      // RC6602-00001
 	DocExpense    = "expense"    // EX6602-00001
+	DocConversion = "conversion" // CV6602-00001
 )
 
 var docPrefix = map[string]string{
 	DocSale: "N", DocReceipt: "OD", DocReturn: "RT", DocAdjustment: "ADJ", DocStockTake: "ST", DocARPayment: "RC", DocExpense: "EX",
+	DocConversion: "CV",
 }
 
 var bangkok = mustLoadTZ("Asia/Bangkok")
