@@ -4,6 +4,8 @@ out
 build
 coverage
 tests
+# the config imports from tests/, which is not in the image — and the app never needs it
+playwright.config.ts
 playwright-report
 test-results
 .git
