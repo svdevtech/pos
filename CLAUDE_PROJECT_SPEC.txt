@@ -1,0 +1,28 @@
+โครงร่างเนื้อหาหลักภายในเอกสาร (Architecture Blueprint)
+1. Project Scope & Tech Stack Definition:
+
+ระบุขอบเขตการทำงานร่วมกันระหว่าง Go Backend (Clean Architecture), PostgreSQL, และ Next.js 14 + MUI + TypeScript พร้อมโครงสร้าง ETL Data Migration สำหรับรับข้อมูลจาก MS Access ในอนาคต
+
+2. Monorepo Project Structure:
+
+กำหนดการจัดวาง Directory ทั้งฝั่ง Backend (cmd, internal/domain, service, repository, trag) และ Frontend (app/(pos), app/(dashboard), app/(liff), components/glass)
+
+3. Functional Workflows (Business Logic):
+
+Cashier POS Workflow: การยิงบาร์โค้ด, พักบิล, ค้นหาสมาชิก, รับชำระหลายช่องทาง และการตัดสต็อกพร้อมบันทึกยอดสะสมปันผลแบบ Atomic Transaction
+
+LINE LIFF Member Portal: การลงทะเบียนผ่านเบอร์โทร, บัตรสมาชิกดิจิทัล (Holographic Glass Card), ตัวนับยอดซื้อสะสมและประมาณการปันผลรายปี
+
+Annual Dividend Engine: ระบบจำลองและคำนวณเงินเฉลี่ยคืนตามยอดซื้อ (Rebate) และเงินปันผลตามหุ้นสหกรณ์ (Share Capital), เวิร์กโฟลว์การอนุมัติจ่าย (Approval State Machine)
+
+Legacy MS Access Migration Pipeline: โมดูลสำหรับ Sanitize และ Import ข้อมูลลูกค้า/ยอดสะสมเดิมเข้ามายังระบบใหม่
+
+T-RAG AI Pipeline: อินเทอร์เฟซรองรับ Natural Language to SQL และการวิเคราะห์ Time-series เชิงเวลา
+
+4. Glassmorphism & UI/UX Design System:
+
+ระบุ Palette, ค่า Blur, Transparency, Gradient พื้นหลัง และการทำ Theme Override ใน Material-UI สำหรับ GlassCard, GlassButton, GlassTable และ GlassInput ที่รองรับ Responsive ทั้งจอ Desktop/Tablet POS และจอมือถือ LINE
+
+5. Claude Code CLI Prompt:
+
+คำสั่ง Prompt สำเร็จรูปที่สั่งให้ Claude Code โฟกัสเฉพาะโค้ด Logic, APIs, และ UI Components โดยไม่ยุ่งกับ Database DDL

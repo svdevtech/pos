@@ -1,0 +1,18 @@
+# Optional public URL for LIFF testing, same pattern as hermes-tunnel-todo.service on tee-dev.
+# Requires a matching nginx vhost on the relay (123.253.61.101) mapping pos.tdev2022.com -> 127.0.0.1:9111.
+# Install: sudo cp pos-tunnel.service /etc/systemd/system/ && sudo systemctl enable --now pos-tunnel
+[Unit]
+Description=Public tunnel for project pos -> https://pos.tdev2022.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tee
+Environment="AUTOSSH_GATETIME=0"
+ExecStart=/usr/bin/autossh -M 0 -N -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -p 22 -R 127.0.0.1:9111:localhost:3010 root@123.253.61.101
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

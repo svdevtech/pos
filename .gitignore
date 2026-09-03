@@ -1,0 +1,27 @@
+# secrets / env
+.env
+.env.*
+!.env.example
+*.env
+# legacy source data (large / sensitive)
+database.mdb
+legacy-dump/
+*.jsonl
+*.tar.gz
+# build
+backend/bin/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+node_modules/
+frontend/test-results/
+frontend/playwright-report/
+# misc
+*.log
+.DS_Store
+Thumbs.db
+
+# operator docs containing server passwords / gateway tokens (kept local, not versioned)
+SERVER_MANUAL.md
+SSH-LOCAL-UBUNTU-SERVER.md
+T-LLM-API-SPEC.md

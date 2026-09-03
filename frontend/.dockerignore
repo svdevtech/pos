@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+build
+coverage
+tests
+playwright-report
+test-results
+.git
+.gitignore
+.env*
+!.env.example
+*.log
+.DS_Store
+README.md
+Dockerfile
+.dockerignore
