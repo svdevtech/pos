@@ -62,3 +62,49 @@ a {
     font-size: 10px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Dialogs with an on-screen keyboard (iPad / Android tablets)
+   --vvh / --vv-top / .kb-open are published by components/VisualViewportFix.tsx.
+   Without this a centred dialog is laid out against the full window height and
+   ends up hidden behind the keyboard.
+   --------------------------------------------------------------------------- */
+.MuiDialog-container {
+  align-items: flex-start;
+}
+
+.MuiDialog-container .MuiDialog-paper {
+  max-height: calc(var(--vvh, 100dvh) - 24px);
+  margin-top: calc(var(--vv-top, 0px) + 12px);
+  margin-bottom: 12px;
+}
+
+/* the scrollable body of every dialog */
+.MuiDialog-paper .MuiDialogContent-root {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* keyboard open: pin the dialog to the top of the visible area and keep the
+   action buttons reachable by making the body the only scrolling part */
+html.kb-open .MuiDialog-container .MuiDialog-paper {
+  margin-top: calc(var(--vv-top, 0px) + 8px);
+  max-height: calc(var(--vvh, 100dvh) - 16px);
+}
+
+html.kb-open .MuiDialog-paper .MuiDialogTitle-root {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+html.kb-open .MuiDialog-paper .MuiDialogActions-root {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+/* MUI menus/selects opened from a dialog must stay inside the visible area too */
+html.kb-open .MuiPopover-paper,
+html.kb-open .MuiMenu-paper {
+  max-height: calc(var(--vvh, 100dvh) - 32px);
+}

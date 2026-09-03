@@ -18,6 +18,16 @@ import { dec, type PaymentMethod, type ReceiptData } from '@/lib/pos/types';
 
 export const AUTO_PRINT_KEY = 'pos.autoPrint';
 
+/** The cashier's explicit choice on this device, or null when they never changed it. */
+export function readAutoPrintOverride(): boolean | null {
+  try {
+    const v = window.localStorage.getItem(AUTO_PRINT_KEY);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
+
 export function readAutoPrint(): boolean {
   try {
     const v = window.localStorage.getItem(AUTO_PRINT_KEY);

@@ -22,6 +22,7 @@ import {
   type SessionStore,
 } from '@/lib/auth/session';
 import ThemeRegistry from './ThemeRegistry';
+import VisualViewportFix from './VisualViewportFix';
 import { ToastProvider } from './Toast';
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,7 @@ export default function Providers({ children, locale, messages }: ProvidersProps
   return (
     <NextIntlClientProvider locale={locale} messages={messages} timeZone={TIME_ZONE}>
       <ThemeRegistry mode="dark">
+        <VisualViewportFix />
         <QueryClientProvider client={queryClient}>
           <ToastProvider>
             <SessionProvider>{children}</SessionProvider>

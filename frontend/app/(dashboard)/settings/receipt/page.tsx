@@ -23,6 +23,7 @@ interface Values {
   paper_width: '58' | '80';
   receipt_locale: 'th' | 'en';
   show_logo: boolean;
+  auto_print_receipt: boolean;
   allow_price_edit: boolean;
   require_shift: boolean;
   allow_negative_stock: boolean;
@@ -39,6 +40,7 @@ function fromSettings(s: StoreSettings): Values {
     paper_width: paper === '58' ? '58' : '80',
     receipt_locale: s.receipt_locale === 'en' ? 'en' : 'th',
     show_logo: s.show_logo ?? true,
+    auto_print_receipt: s.auto_print_receipt ?? true,
     allow_price_edit: s.allow_price_edit ?? false,
     require_shift: s.require_shift ?? true,
     allow_negative_stock: s.allow_negative_stock ?? false,
@@ -54,6 +56,7 @@ function toSettings(current: StoreSettings, v: Values): StoreSettings {
     paper_width: Number(v.paper_width),
     receipt_locale: v.receipt_locale,
     show_logo: v.show_logo,
+    auto_print_receipt: v.auto_print_receipt,
     allow_price_edit: v.allow_price_edit,
     require_shift: v.require_shift,
     allow_negative_stock: v.allow_negative_stock,
@@ -92,7 +95,7 @@ function ReceiptSettingsContent() {
     });
   };
 
-  const toggle = (key: 'show_logo' | 'allow_price_edit' | 'require_shift' | 'allow_negative_stock', hint: string) =>
+  const toggle = (key: 'show_logo' | 'auto_print_receipt' | 'allow_price_edit' | 'require_shift' | 'allow_negative_stock', hint: string) =>
     values && (
       <FormControlLabel
         control={<Switch checked={values[key]} onChange={(e) => set(key, e.target.checked)} />}
@@ -144,6 +147,7 @@ function ReceiptSettingsContent() {
                     ))}
                   </GlassInput>
                   {toggle('show_logo', t('showLogoHint'))}
+                  {toggle('auto_print_receipt', t('autoPrintReceiptHint'))}
                   <GlassInput select label={t('rounding')} value={values.rounding} onChange={(e) => set('rounding', e.target.value)} helperText={t('roundingHint')}>
                     {ROUNDING_OPTIONS.map((r) => (
                       <MenuItem key={r} value={r}>

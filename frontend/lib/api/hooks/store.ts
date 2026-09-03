@@ -8,6 +8,7 @@ export interface StoreSettings {
   paper_width?: number | string;
   receipt_locale?: 'th' | 'en' | string;
   show_logo?: boolean;
+  auto_print_receipt?: boolean;
   allow_price_edit?: boolean;
   require_shift?: boolean;
   allow_negative_stock?: boolean;

@@ -366,7 +366,8 @@
     "varianceOk": "Balanced",
     "varianceOver": "Over",
     "varianceShort": "Short",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "printReceiptHint": "Turn off when the customer does not want a receipt (you can still reprint it later)"
   },
   "receipt": {
     "title": "Receipt",
@@ -1237,7 +1238,9 @@
     "hardware": "Hardware",
     "portHint": "Serial port such as COM3 (leave blank if unused)",
     "drawerPort": "Cash drawer port",
-    "displayPort": "Customer display port"
+    "displayPort": "Customer display port",
+    "autoPrintReceiptHint": "Print the receipt right after payment (the cashier can still choose per bill)",
+    "auto_print_receipt": "Print receipt automatically"
   },
   "admin": {
     "title": "Platform admin",

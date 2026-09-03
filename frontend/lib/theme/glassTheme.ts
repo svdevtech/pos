@@ -125,9 +125,25 @@ export function createGlassTheme(mode: PaletteMode = 'dark'): Theme {
       },
       MuiDialog: {
         styleOverrides: {
-          paper: { ...glassSurface, background: isDark ? 'rgba(30, 45, 60, 0.85)' : 'rgba(255,255,255,0.9)' },
+          // near-opaque on purpose: dialogs are read at arm's length on tablets in bright shops,
+          // and a translucent sheet over the cart is hard to read (backdrop-filter is a bonus, not the base)
+          paper: {
+            ...glassSurface,
+            background: isDark ? 'rgba(20, 32, 44, 0.97)' : 'rgba(252, 253, 255, 0.98)',
+            // no backdrop blur here on purpose: some tablet browsers render a blurred layer as
+            // see-through, and a dialog must stay readable over the cart
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+            boxShadow: isDark ? '0 24px 64px rgba(0,0,0,0.55)' : '0 24px 64px rgba(15,32,39,0.25)',
+          },
         },
       },
+      MuiBackdrop: {
+        styleOverrides: {
+          root: { backgroundColor: isDark ? 'rgba(3, 10, 16, 0.72)' : 'rgba(15, 32, 39, 0.35)' },
+        },
+      },
+
       MuiAppBar: {
         defaultProps: { elevation: 0, color: 'transparent' },
         styleOverrides: {
@@ -154,12 +170,12 @@ export function createGlassTheme(mode: PaletteMode = 'dark'): Theme {
       },
       MuiMenu: {
         styleOverrides: {
-          paper: { ...glassSurface, background: isDark ? 'rgba(30, 45, 60, 0.92)' : 'rgba(255,255,255,0.95)' },
+          paper: { ...glassSurface, background: isDark ? 'rgba(20, 32, 44, 0.98)' : 'rgba(252, 253, 255, 0.98)' },
         },
       },
       MuiPopover: {
         styleOverrides: {
-          paper: { background: isDark ? 'rgba(30, 45, 60, 0.92)' : 'rgba(255,255,255,0.95)' },
+          paper: { background: isDark ? 'rgba(20, 32, 44, 0.98)' : 'rgba(252, 253, 255, 0.98)' },
         },
       },
       MuiButton: {

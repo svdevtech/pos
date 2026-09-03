@@ -30,7 +30,7 @@ import CartGrid from '@/components/pos/CartGrid';
 import HeldBillsDialog from '@/components/pos/HeldBillsDialog';
 import MemberPicker, { MemberChip } from '@/components/pos/MemberPicker';
 import ProductSearchDialog from '@/components/pos/ProductSearchDialog';
-import ReceiptDialog, { readAutoPrint } from '@/components/pos/ReceiptPrint';
+import ReceiptDialog, { readAutoPrintOverride, writeAutoPrint } from '@/components/pos/ReceiptPrint';
 import ScanInput, { type ScanInputHandle } from '@/components/pos/ScanInput';
 import ShiftOpenDialog, { readTerminal } from '@/components/pos/ShiftOpenDialog';
 import TenderDialog from '@/components/pos/TenderDialog';
@@ -130,6 +130,10 @@ export default function PosPage() {
   const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
   const shift = useQuery({ queryKey: posKeys.shift, queryFn: posApi.currentShift, staleTime: 60_000 });
   const requireShift = Boolean(settings.data?.require_shift);
+  // printing default: the cashier's own choice on this device wins, otherwise the store setting
+  const [printOverride, setPrintOverride] = useState<boolean | null>(null);
+  useEffect(() => setPrintOverride(readAutoPrintOverride()), []);
+  const printReceiptDefault = printOverride ?? (settings.data?.auto_print_receipt ?? true);
   const allowPriceEdit = Boolean(settings.data?.allow_price_edit);
 
   useEffect(() => {
@@ -231,8 +235,9 @@ export default function PosPage() {
 
   // ----- mutations ---------------------------------------------------------
   const createSale = useMutation({
-    mutationFn: (payments: TenderInput[]) => posApi.createSale(toSaleInput(cart, payments, readTerminal(settings.data?.default_terminal as string | undefined))),
-    onSuccess: (sale) => {
+    mutationFn: ({ payments }: { payments: TenderInput[]; print: boolean }) =>
+      posApi.createSale(toSaleInput(cart, payments, readTerminal(settings.data?.default_terminal as string | undefined))),
+    onSuccess: (sale, { print }) => {
       setTenderOpen(false);
       setLastSale(sale);
       qc.setQueryData(posKeys.sale(sale.id), sale);
@@ -241,7 +246,9 @@ export default function PosPage() {
       void qc.invalidateQueries({ queryKey: posKeys.shift });
       if (cart.held_bill_id) void qc.invalidateQueries({ queryKey: posKeys.held });
       toast.success(t('saleCompleted', { docNo: sale.doc_no }));
-      setReceipt({ saleId: sale.id, change: dec(sale.change_amount), copy: false, autoPrint: readAutoPrint(), afterSale: true });
+      // the receipt window only opens when this bill should be printed; otherwise the cashier
+      // goes straight to the next customer and can still use "พิมพ์ซ้ำ" for the last bill
+      if (print) setReceipt({ saleId: sale.id, change: dec(sale.change_amount), copy: false, autoPrint: true, afterSale: true });
       resetCart();
     },
   });
@@ -586,7 +593,12 @@ export default function PosPage() {
         member={member}
         busy={createSale.isPending}
         error={createSale.error ? errorMessage(createSale.error) : null}
-        onConfirm={(payments) => createSale.mutate(payments)}
+        onConfirm={(payments, print) => createSale.mutate({ payments, print })}
+        defaultPrintReceipt={printReceiptDefault}
+        onPrintReceiptChange={(on) => {
+          writeAutoPrint(on);
+          setPrintOverride(on);
+        }}
       />
       <ReceiptDialog
         open={Boolean(receipt)}

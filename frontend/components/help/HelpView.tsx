@@ -260,6 +260,28 @@ const markdownComponents = {
       </Box>
     );
   },
+  img: (props: { src?: string; alt?: string }) => {
+    // the manuals live in docs/ and reference images/<file>; in the app they are served from /help/images
+    const src = (props.src ?? '').replace(/^(\.\/)?images\//, '/help/images/');
+    return (
+      <Box
+        component="img"
+        src={src}
+        alt={props.alt ?? ''}
+        loading="lazy"
+        sx={{
+          display: 'block',
+          maxWidth: '100%',
+          height: 'auto',
+          my: 2,
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: 3,
+        }}
+      />
+    );
+  },
   hr: () => <Divider sx={{ my: 3 }} />,
 };
 

@@ -226,6 +226,7 @@ export interface StoreInfo {
 /** Free-form settings map; only the keys the POS cares about are typed. */
 export interface StoreSettings {
   paper_width?: number | string;
+  auto_print_receipt?: boolean;
   require_shift?: boolean;
   allow_price_edit?: boolean;
   allow_negative_stock?: boolean;

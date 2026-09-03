@@ -4,6 +4,8 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -30,7 +32,11 @@ interface Props {
   /** Amount due (server-quoted net). */
   net: number;
   member: Member | null;
-  onConfirm: (payments: TenderInput[]) => Promise<void> | void;
+  onConfirm: (payments: TenderInput[], printReceipt: boolean) => Promise<void> | void;
+  /** Default of the "print receipt" checkbox (store setting, overridden per device). */
+  defaultPrintReceipt?: boolean;
+  /** Persists the cashier's choice for the next bill. */
+  onPrintReceiptChange?: (on: boolean) => void;
   busy?: boolean;
   error?: string | null;
 }
@@ -73,14 +79,28 @@ export function settle(net: number, rows: Row[]) {
   return { cash, nonCash, credit, remaining, short, change, nonCashExceeds, valid: !nonCashExceeds && short === 0 && net >= 0 };
 }
 
-export default function TenderDialog({ open, onClose, net, member, onConfirm, busy = false, error }: Props) {
+export default function TenderDialog({
+  open,
+  onClose,
+  net,
+  member,
+  onConfirm,
+  busy = false,
+  error,
+  defaultPrintReceipt = true,
+  onPrintReceiptChange,
+}: Props) {
+  const [printReceipt, setPrintReceipt] = useState(defaultPrintReceipt);
   const t = useTranslations('pos');
   const locale = resolveLocale(useLocale());
   const [rows, setRows] = useState<Row[]>([newRow('cash')]);
 
   useEffect(() => {
-    if (open) setRows([newRow('cash', '')]);
-  }, [open]);
+    if (open) {
+      setRows([newRow('cash', '')]);
+      setPrintReceipt(defaultPrintReceipt);
+    }
+  }, [open, defaultPrintReceipt]);
 
   const creditAllowed = Boolean(member && !member.is_walkin);
   const s = useMemo(() => settle(net, rows), [net, rows]);
@@ -128,7 +148,7 @@ export default function TenderDialog({ open, onClose, net, member, onConfirm, bu
 
   const confirm = () => {
     if (!s.valid || busy) return;
-    void onConfirm(payments());
+    void onConfirm(payments(), printReceipt);
   };
 
   const methodLabel = (m: PaymentMethod) => t(`methods.${m}`);
@@ -158,6 +178,48 @@ export default function TenderDialog({ open, onClose, net, member, onConfirm, bu
       }}
     >
       <Grid container spacing={3}>
+        {/* tablets/phones: the full summary panel sits below the fold once the keyboard opens,
+            so repeat the three numbers the cashier needs while typing as a sticky strip */}
+        <Grid item xs={12} sx={{ display: { xs: 'block', md: 'none' } }}>
+          <Stack
+            direction="row"
+            spacing={2}
+            justifyContent="space-between"
+            sx={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 2,
+              py: 1,
+              px: 1.5,
+              borderRadius: 2,
+              background: (th) => th.glass.surfaceStrong,
+              border: (th) => `1px solid ${th.glass.border}`,
+            }}
+          >
+            <Stack>
+              <Typography variant="caption" color="text.secondary">
+                {t('amountDue')}
+              </Typography>
+              <Typography variant="h6" fontWeight={800} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                {formatMoney(net, locale)}
+              </Typography>
+            </Stack>
+            <Stack alignItems="flex-end">
+              <Typography variant="caption" color="text.secondary">
+                {s.short > 0 ? t('shortBy') : t('change')}
+              </Typography>
+              <Typography
+                variant="h6"
+                fontWeight={800}
+                color={s.short > 0 ? 'error.main' : 'success.main'}
+                sx={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {formatMoney(s.short > 0 ? s.short : s.change, locale)}
+              </Typography>
+            </Stack>
+          </Stack>
+        </Grid>
+
         <Grid item xs={12} md={7}>
           <Stack spacing={1.5}>
             {rows.map((r) => (
@@ -231,6 +293,29 @@ export default function TenderDialog({ open, onClose, net, member, onConfirm, bu
                 {t('clearCash')}
               </GlassButton>
             </Stack>
+
+            <Divider />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={printReceipt}
+                  onChange={(e) => {
+                    setPrintReceipt(e.target.checked);
+                    onPrintReceiptChange?.(e.target.checked);
+                  }}
+                  inputProps={{ 'aria-label': t('printReceipt'), 'data-testid': 'tender-print-receipt' } as React.InputHTMLAttributes<HTMLInputElement>}
+                />
+              }
+              label={
+                <Stack>
+                  <Typography variant="body2">{t('printReceipt')}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {t('printReceiptHint')}
+                  </Typography>
+                </Stack>
+              }
+              sx={{ alignItems: 'flex-start', ml: 0 }}
+            />
           </Stack>
         </Grid>
 
