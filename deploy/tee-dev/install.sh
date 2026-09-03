@@ -12,7 +12,10 @@ s() { if [ -n "$PW" ]; then echo "$PW" | sudo -S "$@" 2>/dev/null; else sudo "$@
 
 echo "== directories"
 mkdir -p "$BASE"/{src,pgdata,legacy,backups,appdata}
-ls -ld "$BASE"
+# the api image runs as uid 10001, so the volume it writes to (in-app backups and uploaded legacy
+# dumps) must belong to that uid. Done through docker so no sudo is needed.
+docker run --rm -v "$BASE/appdata:/d" alpine:3.20 chown -R 10001:10001 /d
+ls -ld "$BASE" "$BASE/appdata"
 
 echo "== docker"
 if ! command -v docker >/dev/null; then
