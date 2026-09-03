@@ -50,8 +50,11 @@ services:
       PLATFORM_ADMIN_USER: ${PLATFORM_ADMIN_USER:-admin}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       TZ: Asia/Bangkok
+      # backups, uploaded legacy dumps and restore uploads (ตั้งค่า → ข้อมูลและการสำรอง)
+      DATA_DIR: /data
     volumes:
       - ${LEGACY_DIR:-/data/pos/legacy}:/legacy
+      - ${DATA_DIR:-/data/pos/appdata}:/data
     ports:
       - "127.0.0.1:${API_PORT:-8090}:8090"
 

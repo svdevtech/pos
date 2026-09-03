@@ -3,6 +3,7 @@
 import KeyIcon from '@mui/icons-material/Key';
 import PeopleIcon from '@mui/icons-material/People';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import StorageIcon from '@mui/icons-material/Storage';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -16,7 +17,7 @@ import { GlassCard } from '@/components/glass';
 import { MUTATING_ROLES, type Role } from '@/lib/auth/session';
 
 interface Card {
-  key: 'store' | 'users' | 'password' | 'receipt';
+  key: 'store' | 'users' | 'password' | 'receipt' | 'data';
   href: string;
   icon: ReactNode;
   roles?: readonly Role[];
@@ -27,6 +28,7 @@ const CARDS: Card[] = [
   { key: 'users', href: '/settings/users', icon: <PeopleIcon />, roles: MUTATING_ROLES },
   { key: 'password', href: '/settings/password', icon: <KeyIcon /> },
   { key: 'receipt', href: '/settings/receipt', icon: <ReceiptIcon />, roles: MUTATING_ROLES },
+  { key: 'data', href: '/settings/data', icon: <StorageIcon />, roles: ['store_owner'] },
 ];
 
 export default function SettingsPage() {

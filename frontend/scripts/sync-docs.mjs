@@ -36,4 +36,14 @@ if (existsSync(imgSrc)) {
     images++;
   }
 }
-console.log(`synced ${copied} document(s), ${images} image(s)`);
+// the legacy extractor is offered for download on the "data & backups" page, so it must ship
+// inside the web image too
+const extractor = resolve(here, '../../tools/legacy-extract/extract.ps1');
+let tools = 0;
+if (existsSync(extractor)) {
+  const toolOut = resolve(here, '../public/legacy');
+  mkdirSync(toolOut, { recursive: true });
+  copyFileSync(extractor, resolve(toolOut, 'extract.ps1'));
+  tools++;
+}
+console.log(`synced ${copied} document(s), ${images} image(s), ${tools} tool(s)`);

@@ -10,7 +10,7 @@ import (
 )
 
 // wireModules attaches the business modules (products, members, sales, ...) to the HTTP deps.
-func wireModules(_ context.Context, cfg *config.Config, _ *slog.Logger, db *postgres.DB, deps httptransport.Deps) httptransport.Deps {
+func wireModules(_ context.Context, cfg *config.Config, log *slog.Logger, db *postgres.DB, deps httptransport.Deps) httptransport.Deps {
 	wireProducts(db, cfg, &deps)
 	wireInventory(db, cfg, &deps)
 	wireMembers(db, cfg, deps.JWT, &deps)
@@ -18,5 +18,6 @@ func wireModules(_ context.Context, cfg *config.Config, _ *slog.Logger, db *post
 	wireReports(db, cfg, &deps)
 	wireDividends(db, cfg, &deps)
 	wireAI(db, cfg, &deps)
+	wireDataOps(db, cfg, log, &deps)
 	return deps
 }

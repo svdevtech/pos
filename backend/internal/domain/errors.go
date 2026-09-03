@@ -120,6 +120,13 @@ var (
 
 	ErrImportManifest = NewError("IMPORT_MANIFEST_INVALID", http.StatusBadRequest)
 
+	// data operations started from the UI (backup / restore / legacy import)
+	ErrDataOpBusy        = NewError("DATA_OP_BUSY", http.StatusConflict)
+	ErrBackupInvalid     = NewError("BACKUP_INVALID", http.StatusBadRequest)
+	ErrBackupVersion     = NewError("BACKUP_VERSION_UNSUPPORTED", http.StatusBadRequest)
+	ErrLegacyDumpMissing = NewError("LEGACY_DUMP_MISSING", http.StatusBadRequest)
+	ErrLegacyDumpInvalid = NewError("LEGACY_DUMP_INVALID", http.StatusBadRequest)
+
 	ErrMemberInactive = NewError("MEMBER_INACTIVE", http.StatusForbidden)
 	ErrLineUpstream   = NewError("LINE_UPSTREAM", http.StatusBadGateway)
 )

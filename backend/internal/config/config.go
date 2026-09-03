@@ -36,6 +36,8 @@ type Config struct {
 	PlatformAdminUser     string
 	PlatformAdminPassword string
 	// Misc
+	// Data operations (backup / restore / legacy import uploads)
+	DataDir     string
 	Timezone    string
 	LogLevel    string
 	RateLimit   int // requests per minute per IP for auth endpoints
@@ -63,6 +65,7 @@ func Load() (*Config, error) {
 		LiffID:                get("LIFF_ID", ""),
 		PlatformAdminUser:     get("PLATFORM_ADMIN_USER", "admin"),
 		PlatformAdminPassword: get("PLATFORM_ADMIN_PASSWORD", ""),
+		DataDir:               get("DATA_DIR", "./data"),
 		Timezone:              get("TZ", "Asia/Bangkok"),
 		LogLevel:              get("LOG_LEVEL", "info"),
 		RateLimit:             getInt("AUTH_RATE_LIMIT", 30),

@@ -25,3 +25,9 @@ Thumbs.db
 SERVER_MANUAL.md
 SSH-LOCAL-UBUNTU-SERVER.md
 T-LLM-API-SPEC.md
+
+# local data dir for backups / uploaded legacy dumps (DATA_DIR)
+backend/data/
+# Playwright artefacts
+frontend/test-results/
+test-results/

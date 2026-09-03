@@ -87,6 +87,9 @@ func mustParse(url string) *pgx.ConnConfig {
 type Scope struct {
 	StoreID uuid.UUID // zero => no store
 	Bypass  bool      // platform admin / migration
+	// Snapshot opens the transaction as REPEATABLE READ, so a long export sees one consistent
+	// picture of every table it reads.
+	Snapshot bool
 }
 
 type txKey struct{}
@@ -97,7 +100,13 @@ func (d *DB) WithTx(ctx context.Context, scope Scope, fn func(ctx context.Contex
 	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return fn(ctx, tx)
 	}
-	tx, err := d.Pool.Begin(ctx)
+	var tx pgx.Tx
+	var err error
+	if scope.Snapshot {
+		tx, err = d.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	} else {
+		tx, err = d.Pool.Begin(ctx)
+	}
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
 	}

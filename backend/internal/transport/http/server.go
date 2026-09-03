@@ -35,6 +35,7 @@ type Deps struct {
 	AI        AIService
 	Admin     AdminService
 	Liff      LiffService
+	DataOps   DataOpsService
 	Promo     PromotionService
 }
 
@@ -95,6 +96,7 @@ func (s *Server) routes() chi.Router {
 				s.mountDividends(r)
 				s.mountAI(r)
 				s.mountLiff(r)
+				s.mountDataOps(r)
 			})
 		})
 	})

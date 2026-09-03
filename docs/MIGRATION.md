@@ -13,6 +13,8 @@ database.mdb ──(Windows: tools/legacy-extract/extract.ps1)──▶ legacy-d
                                                                         ▼ reconcile report (JSON)
 ```
 
+> **ทางลัดสำหรับเจ้าของร้าน**: ตั้งแต่เวอร์ชันนี้ ขั้นตอนที่ 2–3 ทำผ่านหน้าเว็บได้เลยที่ **ตั้งค่า → ข้อมูลและการสำรอง → นำเข้าข้อมูลจากระบบเดิม** (อัปโหลด `dump.zip` ที่ได้จาก `extract.ps1 -Zip` แล้วกดทดลองนำเข้า/นำเข้าจริง) เอกสารส่วนที่เหลือคือวิธีทำด้วยคำสั่ง ซึ่งยังใช้ได้เหมือนเดิมและเหมาะกับการนำเข้าครั้งใหญ่ครั้งแรก คู่มือผู้ใช้ข้อ 15.6 อธิบายหน้าจอไว้ครบ
+
 1. **ดึงข้อมูล (extract)** ทำบนเครื่อง Windows ที่มี ODBC driver ของ Access เท่านั้น (เครื่อง dev) — เปิดไฟล์แบบอ่านอย่างเดียว ไม่แก้ .mdb
 2. **นำเข้า (import)** ทำได้ทั้งบนเครื่อง dev (ต่อ DB ใน Docker) และบนเซิร์ฟเวอร์ (ภายใน container `api`)
 3. **กระทบยอด (reconcile)** เป็น stage สุดท้าย ถ้าตัวเลขไม่ตรงคำสั่งจะ exit 1 พร้อมรายการที่ไม่ตรง
@@ -21,6 +23,7 @@ database.mdb ──(Windows: tools/legacy-extract/extract.ps1)──▶ legacy-d
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Password <รหัสผ่านไฟล์ .mdb> -Out D:\workspace\pos\legacy-dump
+# เพิ่ม -Zip ถ้าจะอัปโหลดผ่านหน้าเว็บ (ได้ไฟล์ legacy-dump.zip ~17 MB)
 # ตรวจซ้ำว่าจำนวนแถวตรงกับ manifest
 powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Out D:\workspace\pos\legacy-dump -Verify
 ```

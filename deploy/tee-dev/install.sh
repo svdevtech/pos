@@ -11,7 +11,7 @@ PW=${SUDO_PW:-}
 s() { if [ -n "$PW" ]; then echo "$PW" | sudo -S "$@" 2>/dev/null; else sudo "$@"; fi; }
 
 echo "== directories"
-mkdir -p "$BASE"/{src,pgdata,legacy,backups}
+mkdir -p "$BASE"/{src,pgdata,legacy,backups,appdata}
 ls -ld "$BASE"
 
 echo "== docker"
