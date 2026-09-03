@@ -363,7 +363,9 @@ test.describe('POS payment keypad preference', () => {
     const scan = page.getByTestId('scan-input');
     await scan.fill(BARCODE);
     await scan.press('Enter');
+    await expect(page.getByTestId('cart-line')).toHaveCount(1); // the dialog needs a cart
     await page.keyboard.press('F9');
+    await expect(page.getByTestId('tender-confirm')).toBeVisible();
 
     // pointer: fine -> no keypad, the field takes the hardware keyboard
     await expect(page.getByTestId('keypad-7')).toBeHidden();
@@ -390,7 +392,9 @@ test.describe('POS payment keypad preference', () => {
     const scan = page.getByTestId('scan-input');
     await scan.fill(BARCODE);
     await scan.press('Enter');
+    await expect(page.getByTestId('cart-line')).toHaveCount(1); // the dialog needs a cart
     await page.keyboard.press('F9');
+    await expect(page.getByTestId('tender-confirm')).toBeVisible();
 
     await expect(page.getByTestId('keypad-7')).toBeHidden();
     await page.getByTestId('keypad-toggle').click();

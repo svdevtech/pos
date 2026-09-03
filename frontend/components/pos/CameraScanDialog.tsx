@@ -41,8 +41,11 @@ interface Props {
 }
 
 const CAMERA_KEY = 'pos.scanCamera';
-/** The same symbol usually decodes many times a second; ignore repeats inside this window. */
-const REPEAT_MS = 1500;
+/**
+ * A symbol in front of the lens decodes many times a second, so one item would be added over and
+ * over. It counts again only after leaving the frame for this long (or when another code is read).
+ */
+const RESCAN_GAP_MS = 1200;
 
 export default function CameraScanDialog({ open, onClose, onDetect }: Props) {
   const t = useTranslations('pos');
@@ -78,9 +81,11 @@ export default function CameraScanDialog({ open, onClose, onDetect }: Props) {
 
   const handleCode = useCallback(async (code: string) => {
     const now = Date.now();
-    if (busy.current) return;
-    if (code === lastCode.current.code && now - lastCode.current.at < REPEAT_MS) return;
+    const seen = lastCode.current;
+    // still the same symbol the camera has been staring at → not a new scan
+    const stillInFrame = code === seen.code && now - seen.at < RESCAN_GAP_MS;
     lastCode.current = { code, at: now };
+    if (stillInFrame || busy.current) return;
     busy.current = true;
     beep();
     try {
