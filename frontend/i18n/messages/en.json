@@ -1496,6 +1496,9 @@
     "disabledTitle": "The AI assistant is not enabled",
     "disabledBody": "Set AI_ENABLED=true and make sure the server can reach the T-LLM gateway (see docs/DEPLOY.md section 7). This page works as soon as that is done — nothing else to change.",
     "gatewayDown": "Enabled, but the T-LLM gateway at {url} cannot be reached — check the network or the gateway whitelist",
-    "whenEnabled": "Once enabled you can ask in plain language, e.g. \"how does this week compare with last week?\". The assistant writes a read-only query (SELECT only, capped at 200 rows, restricted to your own store), runs it and explains the result alongside the query it used."
+    "whenEnabled": "Once enabled you can ask in plain language, e.g. \"how does this week compare with last week?\". The assistant writes a read-only query (SELECT only, capped at 200 rows, restricted to your own store), runs it and explains the result alongside the query it used.",
+    "sqlUsed": "Query used",
+    "copySql": "Copy",
+    "sqlCopied": "Query copied"
   }
 }

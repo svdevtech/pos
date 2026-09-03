@@ -1,6 +1,7 @@
 'use client';
 
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import HistoryIcon from '@mui/icons-material/History';
 import SendIcon from '@mui/icons-material/Send';
 import Alert from '@mui/material/Alert';
@@ -179,9 +180,32 @@ function AiContent() {
               {t('meta', { rows: answer.row_count, ms: answer.duration_ms })}
               {answer.truncated ? ` · ${t('truncated')}` : ''}
             </Typography>
-            <Box component="pre" sx={{ m: 0, p: 1.5, borderRadius: 2, bgcolor: 'action.hover', fontSize: 12, overflowX: 'auto' }}>
-              {answer.sql}
-            </Box>
+            <Stack spacing={0.5}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" color="text.secondary">
+                  {t('sqlUsed')}
+                </Typography>
+                <GlassButton
+                  size="small"
+                  variant="text"
+                  startIcon={<ContentCopyIcon fontSize="small" />}
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(answer.sql).then(() => toast.success(t('sqlCopied')));
+                  }}
+                  data-testid="ai-copy-sql"
+                >
+                  {t('copySql')}
+                </GlassButton>
+              </Stack>
+              {/* wrapped, not scrolled: a hidden tail of the query is worse than three lines */}
+              <Box
+                component="pre"
+                sx={{ m: 0, p: 1.5, borderRadius: 2, bgcolor: 'action.hover', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                data-testid="ai-sql"
+              >
+                {answer.sql}
+              </Box>
+            </Stack>
           </Stack>
         </GlassCard>
       )}

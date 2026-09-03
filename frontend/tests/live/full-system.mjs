@@ -582,7 +582,24 @@ const main = async () => {
     const body = await page.locator('body').innerText();
     const shown = status.body?.enabled ? body.includes(L('ai.askTitle')) : body.includes(L('ai.disabledTitle'));
     assert(shown, 'the AI page does not reflect the feature status');
-    return status.body?.enabled ? 'เปิดใช้งาน' : 'ปิดอยู่ และหน้าอธิบายวิธีเปิด';
+    if (!status.body?.enabled) return 'ปิดอยู่ และหน้าอธิบายวิธีเปิด';
+    assert(status.body.gateway === 'ok', `gateway is ${status.body.gateway}`);
+    return `เปิดใช้งาน · ${status.body.model} @ ${status.body.base_url}`;
+  });
+
+  await step('N3', 'ถามผู้ช่วย AI จากหน้าเว็บแล้วได้คำตอบจากข้อมูลจริง', async () => {
+    const status = await api(page, '/ai/status');
+    if (!status.body?.enabled) return 'ข้าม (AI ปิดอยู่)';
+    await page.getByTestId('ai-question').fill('วันนี้ขายได้กี่บิล');
+    await page.getByTestId('ai-ask').click();
+    await page.getByTestId('ai-answer').waitFor({ timeout: 90_000 });
+    const answer = await page.getByTestId('ai-answer').innerText();
+    const sql = await page.getByTestId('ai-sql').innerText();
+    assert(/select/i.test(sql), `the query shown does not look like a SELECT: ${sql.slice(0, 60)}`);
+    assert(!/insert|update|delete|drop/i.test(sql), 'the assistant produced a writing statement');
+    assert(answer.trim().length > 20, 'the answer is empty');
+    return answer.split('
+').filter(Boolean)[1]?.slice(0, 80) ?? 'ตอบแล้ว';
   });
 
   // ------------------------------------------------------- O. security/roles

@@ -221,14 +221,47 @@ ssh ubuntu-server 'echo "<รหัส sudo>" | sudo -S systemctl restart pos-tu
 
 ## 7. เปิดใช้ผู้ช่วย AI (ถาม-ตอบข้อมูลร้านด้วยภาษาไทย)
 
-ใช้ T-LLM gateway ที่ `http://192.168.1.116:9001` (Local Spark) ผ่าน `/v1/generate` — ปัจจุบัน tee-dev **ยังเชื่อมต่อไม่ได้** (ตรวจ 2026-09-02: connection failed)
+หน้า **ผู้ช่วย AI** ในเว็บใช้ gateway T-LLM แปลงคำถามภาษาไทยเป็นคำสั่งค้นข้อมูลแบบอ่านอย่างเดียว (SELECT เท่านั้น, จำกัด 200 แถว, ถูกจำกัดขอบเขตด้วย RLS ของร้านนั้น) แล้วให้โมเดลสรุปคำตอบ
 
-1. ทำให้เครือข่ายถึงกัน แล้วเพิ่ม IP ของ tee-dev (`192.168.1.120`) ใน `config.security.ip_whitelist` ของ gateway `:9001` (config เข้ารหัส ต้อง decrypt → แก้ → encrypt → restart service ตามคู่มือของเครื่อง Local Spark)
-2. ทดสอบจาก tee-dev: `curl -s http://192.168.1.116:9001/health` ต้องได้ 200 (403 = ยังไม่ whitelist)
-3. ตั้ง `AI_ENABLED=true` (และ `TLLM_ADMIN_TOKEN` ถ้ามี) ใน `.env` → `docker compose ... up -d api`
-4. ตรวจในเว็บ: เมนู **ผู้ช่วย AI** → สถานะ gateway ต้องเป็น ok
+### ตั้งค่า (สถานะปัจจุบัน: เปิดใช้งานแล้ว)
 
-ความปลอดภัย: AI สร้างได้เฉพาะ `SELECT` ตารางที่อนุญาต, รันใน transaction read-only ภายใต้ RLS ของร้าน, timeout 8 วินาที, สูงสุด 200 แถว, ทุกคำถามถูกบันทึกใน `ai_query_logs`
+ใน `/data/pos/.env`
+
+```bash
+AI_ENABLED=true
+TLLM_BASE_URL=https://hybrid-llm-sp01.tdev2022.com   # ใช้ตัวนี้อยู่ — เข้าถึงได้จาก tee-dev
+TLLM_MODEL=T-LLM-GC
+TLLM_ADMIN_TOKEN=                                    # ไม่ต้องใส่: /v1/generate ไม่ใช้ token
+```
+
+แล้วรีสตาร์ตเฉพาะ api
+
+```bash
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env up -d api'
+curl -s https://t-pos.tdev2022.com/api/v1/ai/status -H "Authorization: Bearer <token ของผู้จัดการ>"
+# {"enabled":true,"gateway":"ok","model":"T-LLM-GC","base_url":"https://hybrid-llm-sp01.tdev2022.com"}
+```
+
+### เรื่อง gateway และ IP whitelist (สำคัญ)
+
+T-LLM ทุกตัวอยู่หลัง **IP whitelist** (`config.security.ip_whitelist`) และตรวจจาก header `X-Forwarded-For`
+
+| Gateway | สถานะจาก tee-dev (192.168.1.120) | หมายเหตุ |
+|---|---|---|
+| `https://hybrid-llm-sp01.tdev2022.com` (spark01) | **ใช้ได้** — `/health` 200, `/v1/generate` ตอบ 1.6 วินาที | whitelist เปิด `*` อยู่แล้ว จึงไม่ต้องเพิ่มอะไร (แลกกับความเสี่ยงว่า endpoint นี้ไม่มี token gate ตาม pattern เดิมของเครื่องนั้น) |
+| `http://192.168.1.116:9001` (Local Spark, เร็วกว่า) | **ยังใช้ไม่ได้** — `No route to host` ทุกพอร์ต (แม้ ping ก็ไม่ผ่านจาก 192.168.1.120) | ถูกบล็อกที่ระดับเครือข่าย/ไฟร์วอลล์ของเครื่องนั้น **ก่อนถึง** whitelist ของ gateway จึงแก้จากฝั่ง POS ไม่ได้ |
+
+ถ้าต้องการย้ายมาใช้ Local Spark (LAN เร็วกว่า ไม่ออกอินเทอร์เน็ต) ต้องทำ **บนเครื่อง 192.168.1.116** สองอย่าง
+
+1. เปิดพอร์ตให้เครื่องนี้: `sudo ufw allow from 192.168.1.120 to any port 9001 proto tcp` (ตรวจด้วย `sudo ufw status numbered`)
+2. เพิ่ม IP ใน whitelist ของ gateway — config ของ :9001 ถูกเข้ารหัสทั้งไฟล์ (`config.encrypted`, ผูกกับฮาร์ดแวร์เครื่องนั้น) ต้องถอดรหัส/แก้/เข้ารหัสใหม่ตามขั้นตอนใน `SERVER_MANUAL.md` §2.1 แล้วรีสตาร์ต `hybrid-llm`
+   - ระวัง: `main.rs` จะอ่าน `./config.toml` ในโฟลเดอร์ทำงานก่อนเสมอ ถ้ามีไฟล์ plaintext ค้างอยู่จะไม่สนใจ `config.encrypted`
+
+จากนั้นเปลี่ยน `TLLM_BASE_URL=http://192.168.1.116:9001` ใน `/data/pos/.env` แล้ว `docker compose up -d api` ใหม่ ตรวจด้วย `/api/v1/ai/status` ว่า `gateway: ok`
+
+### ถ้า gateway ล่ม
+
+หน้าเว็บจะแจ้งเตือนเองว่า "เปิดใช้งานแล้วแต่ติดต่อ T-LLM ที่ … ไม่ได้" และช่องถามยังใช้ไม่ได้จนกว่าจะติดต่อได้ — ระบบขายและงานอื่นไม่กระทบ (AI แยกส่วนสมบูรณ์) ตั้ง `AI_ENABLED=false` เพื่อซ่อนฟีเจอร์ชั่วคราวก็ได้
 
 ---
 
