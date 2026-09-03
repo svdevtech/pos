@@ -160,23 +160,53 @@ docker compose --env-file /data/pos/.env start api web
 
 ---
 
-## 6. เปิดใช้ LINE LIFF (สมาชิกดูบัตร/ยอดซื้อ/ปันผลผ่าน LINE)
+## 6. URL สาธารณะ (HTTPS) และ LINE LIFF
 
-ต้องมี **URL สาธารณะแบบ HTTPS** ก่อน (LINE ไม่ยอมรับ http/LAN):
+### 6.1 URL สาธารณะ — ติดตั้งแล้ว
 
-1. **เปิดทางออกสาธารณะ** — tee-dev ใช้ reverse SSH tunnel ไป relay `123.253.61.101` แบบเดียวกับโปรเจกต์ `todo`: ติดตั้ง `deploy/tee-dev/pos-tunnel.service` (ส่งพอร์ต 3010 ไป relay `127.0.0.1:9111`)
-   ```bash
-   scp -i ~/.ssh/spark_tunnel deploy/tee-dev/pos-tunnel.service tee@100.122.174.19:/tmp/
-   ssh ubuntu-server 'echo "<รหัส sudo>" | sudo -S cp /tmp/pos-tunnel.service /etc/systemd/system/ && echo "<รหัส sudo>" | sudo -S systemctl enable --now pos-tunnel'
-   ```
-   จากนั้น **บน relay** (ต้องมีสิทธิ์ root ที่นั่น) เพิ่ม nginx vhost `pos.tdev2022.com → 127.0.0.1:9111` พร้อม certificate — ยังไม่ได้ทำในรอบนี้
-2. สร้าง **LINE Login channel** + **LIFF app** ใน LINE Developers Console: Endpoint URL = `https://pos.tdev2022.com/liff`, scope `profile openid`
-3. ใส่ค่าใน `/data/pos/.env`: `LINE_MOCK=false`, `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LIFF_ID`, `NEXT_PUBLIC_LIFF_ID`, `NEXT_PUBLIC_LINE_MOCK=false`, เพิ่ม `https://pos.tdev2022.com` ใน `CORS_ORIGINS` แล้ว deploy ใหม่ (ค่า `NEXT_PUBLIC_*` ถูกฝังตอน build)
-4. ทดสอบ: เปิด LIFF URL ใน LINE → ระบบจะขอผูกบัญชีด้วย "รหัสผูกบัญชี" ที่พนักงานสร้างจากหน้าสมาชิก หรือเบอร์โทรที่ตรงกับทะเบียน
+**https://t-pos.tdev2022.com** ใช้งานได้แล้ว เส้นทาง:
+
+```
+ผู้ใช้ → https://t-pos.tdev2022.com (nginx + Let's Encrypt บน relay 123.253.61.101)
+       → 127.0.0.1:9111 บน relay
+       → reverse SSH tunnel (pos-tunnel.service บน tee-dev, autossh)
+       → localhost:3010 = คอนเทนเนอร์ web
+```
+
+องค์ประกอบที่ติดตั้งไว้:
+
+| ที่ | สิ่งที่ติดตั้ง |
+|---|---|
+| tee-dev | `/etc/systemd/system/pos-tunnel.service` (จาก `deploy/tee-dev/pos-tunnel.service`) — `autossh -R 127.0.0.1:9111:localhost:3010 root@123.253.61.101`, `Restart=always`, enable แล้ว |
+| relay 123.253.61.101 | `/etc/nginx/sites-available/t-pos.tdev2022.com` (+ symlink ใน `sites-enabled`) proxy ไป `127.0.0.1:9111`, ปิด buffering เพื่อรองรับ SSE |
+| relay | ใบรับรอง Let's Encrypt `t-pos.tdev2022.com` (certbot ตั้ง auto-renew ให้แล้ว; หมดอายุ 2026-12-02) + redirect 80 → 443 |
+| `/data/pos/.env` | `CORS_ORIGINS` มี `https://t-pos.tdev2022.com` |
+
+ตรวจสุขภาพ:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" https://t-pos.tdev2022.com/login          # ต้องได้ 200
+ssh ubuntu-server 'systemctl is-active pos-tunnel'                                   # active
+ssh ubuntu-server 'ssh root@123.253.61.101 "ss -tln | grep 9111"'                    # relay ต้องฟังพอร์ต 9111
+ssh ubuntu-server 'echo "<รหัส sudo>" | sudo -S systemctl restart pos-tunnel'        # เมื่อ tunnel ตายเงียบ
+```
+
+> ⚠️ `systemctl is-active pos-tunnel` = active ไม่ได้แปลว่า tunnel ยังใช้ได้ ต้องทดสอบด้วย curl จริงเสมอ
+> ⚠️ relay ตั้ง `GatewayPorts` ไว้ พอร์ต 9111 จึงเปิดที่ `0.0.0.0` ด้วย (เข้าถึงแบบ http ตรงได้ที่ `123.253.61.101:9111` โดยไม่ผ่าน TLS) เหมือนโปรเจกต์อื่นบน relay เดียวกัน — ถ้าต้องการปิด ให้ตั้ง firewall บน relay หรือเปลี่ยน `GatewayPorts` เป็น `no`
+> ⚠️ เว็บเปิดสาธารณะแล้ว ต้องเปลี่ยนรหัสผ่านทดสอบทุกบัญชี (`owner` ฯลฯ) และตั้งรหัสที่คาดเดายาก
+
+เพิ่มโดเมนใหม่: แก้พอร์ต/ชื่อใน `pos-tunnel.service` และคัดลอก vhost เดิมเป็นชื่อใหม่ แล้วรัน `certbot --nginx -d <โดเมน>` บน relay
+
+### 6.2 LINE LIFF
+
+เมื่อมี URL สาธารณะแล้ว:
+
+1. สร้าง **LINE Login channel** + **LIFF app** ใน LINE Developers Console: Endpoint URL = `https://t-pos.tdev2022.com/liff`, scope `profile openid`
+2. ใส่ค่าใน `/data/pos/.env`: `LINE_MOCK=false`, `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LIFF_ID`, `NEXT_PUBLIC_LIFF_ID`, `NEXT_PUBLIC_LINE_MOCK=false` แล้ว deploy ใหม่ (ค่า `NEXT_PUBLIC_*` ถูกฝังตอน build)
+3. ทดสอบ: เปิด LIFF URL ใน LINE → ผูกบัญชีด้วย "รหัสผูกบัญชี" ที่พนักงานสร้างจากหน้าสมาชิก หรือเบอร์โทรที่ตรงกับทะเบียน
 
 ระหว่างที่ยังเป็น mock: หน้า `/liff` รับ token รูปแบบ `mock:<lineUserId>:<ชื่อ>` เพื่อทดสอบ flow ได้โดยไม่ต้องมี LINE จริง
-
----
 
 ## 7. เปิดใช้ผู้ช่วย AI (ถาม-ตอบข้อมูลร้านด้วยภาษาไทย)
 

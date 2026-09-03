@@ -27,6 +27,14 @@ cd backend && cp .env.example .env && go run ./cmd/seed -store BBR -store-name "
 cd frontend && npm install && npm run dev      # http://localhost:3010 → login: ร้าน BBR / owner / Owner12345
 ```
 
+## เข้าใช้งาน
+
+| ช่องทาง | URL |
+|---|---|
+| อินเทอร์เน็ต (HTTPS) | **https://t-pos.tdev2022.com** |
+| แลนภายใน | http://192.168.1.120:3010 |
+| Tailscale | http://100.122.174.19:3010 |
+
 ## เอกสาร
 
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — คู่มือผู้ใช้งานฉบับละเอียด (แคชเชียร์ หลังร้าน ปันผล สมาชิก LINE)
