@@ -309,7 +309,8 @@ export function usePostAdjustment() {
 export function useCreateStockTake() {
   const invalidate = useInvalidateInventory();
   return useMutation({
-    mutationFn: (input: { note?: string; product_ids?: string[] }) =>
+    // `empty: true` opens a sheet with no lines — the phone stock-check page fills it in by scanning
+    mutationFn: (input: { note?: string; product_ids?: string[]; empty?: boolean }) =>
       api.post<StockTakeView>('/inventory/stock-takes', input),
     onSuccess: invalidate,
   });

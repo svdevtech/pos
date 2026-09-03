@@ -309,6 +309,9 @@ func (s *Service) GetAdjustment(ctx context.Context, storeID, id uuid.UUID) (*do
 type StockTakeInput struct {
 	Note       string      `json:"note"`
 	ProductIDs []uuid.UUID `json:"product_ids"` // empty = every active, non-archived product
+	// Empty starts a sheet with no lines at all: counting from a phone adds the items as they are
+	// scanned, instead of snapshotting the whole catalogue.
+	Empty bool `json:"empty"`
 }
 
 type CountInput struct {
@@ -344,7 +347,7 @@ func (s *Service) CreateStockTake(ctx context.Context, actor Actor, storeID uuid
 			return err
 		}
 		t.DocNo = docNo
-		if err := s.takes.Create(ctx, t, ids); err != nil {
+		if err := s.takes.Create(ctx, t, ids, in.Empty); err != nil {
 			return err
 		}
 		full, err := s.takes.Get(ctx, storeID, t.ID)

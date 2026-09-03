@@ -395,12 +395,17 @@ func scanStockTake(row pgx.Row) (*domain.StockTake, error) {
 }
 
 // Create inserts the header and snapshots system_qty for productIDs (empty = every active, non-archived product).
-func (StockTakeRepo) Create(ctx context.Context, t *domain.StockTake, productIDs []uuid.UUID) error {
+// Create opens a sheet. With `empty` no lines are seeded (they arrive through UpsertCount); with
+// no product ids every active product is snapshotted.
+func (StockTakeRepo) Create(ctx context.Context, t *domain.StockTake, productIDs []uuid.UUID, empty bool) error {
 	if err := Q(ctx).QueryRow(ctx, `INSERT INTO stock_takes (store_id, doc_no, status, note, started_at, created_by)
 		VALUES ($1,$2,$3::stocktake_status,NULLIF($4,''),$5,$6) RETURNING id`, t.StoreID, t.DocNo, t.Status, t.Note, t.StartedAt, t.CreatedBy).Scan(&t.ID); err != nil {
 		return err
 	}
 	var err error
+	if empty {
+		return Q(ctx).QueryRow(ctx, `SELECT count(*) FROM stock_take_lines WHERE stock_take_id=$1`, t.ID).Scan(&t.LineCount)
+	}
 	if len(productIDs) == 0 {
 		_, err = Q(ctx).Exec(ctx, `INSERT INTO stock_take_lines (stock_take_id, product_id, system_qty)
 			SELECT $1, id, stock_on_hand FROM products WHERE store_id=$2 AND is_active AND NOT is_archived`, t.ID, t.StoreID)

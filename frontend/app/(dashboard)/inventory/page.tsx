@@ -2,6 +2,7 @@
 
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import MoveDownIcon from '@mui/icons-material/MoveDown';
 import TuneIcon from '@mui/icons-material/Tune';
 import Box from '@mui/material/Box';
@@ -23,7 +24,7 @@ import { MUTATING_ROLES, type Role } from '@/lib/auth/session';
 import { formatMoney, formatQty } from '@/lib/format';
 
 interface Shortcut {
-  key: 'receipts' | 'adjustments' | 'stockTakes' | 'movements';
+  key: 'stockCheck' | 'receipts' | 'adjustments' | 'stockTakes' | 'movements';
   href: string;
   icon: ReactNode;
   /** The document endpoints are manager-only on the backend (handlers_inventory.go). */
@@ -31,6 +32,7 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
+  { key: 'stockCheck', href: '/inventory/check', icon: <QrCodeScannerIcon /> },
   { key: 'receipts', href: '/inventory/receipts', icon: <MoveDownIcon />, roles: MUTATING_ROLES },
   { key: 'adjustments', href: '/inventory/adjustments', icon: <TuneIcon />, roles: MUTATING_ROLES },
   { key: 'stockTakes', href: '/inventory/stock-takes', icon: <FactCheckIcon />, roles: MUTATING_ROLES },

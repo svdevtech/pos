@@ -20,6 +20,7 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import AppBar from '@mui/material/AppBar';
 import Avatar from '@mui/material/Avatar';
@@ -54,6 +55,7 @@ type NavKey =
   | 'pos'
   | 'products'
   | 'inventory'
+  | 'stockCheck'
   | 'suppliers'
   | 'promotions'
   | 'members'
@@ -82,6 +84,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'pos', href: '/pos', icon: <PointOfSaleIcon />, roles: SELLERS },
   { key: 'products', href: '/products', icon: <Inventory2Icon />, roles: BACK_OFFICE },
   { key: 'inventory', href: '/inventory', icon: <WarehouseIcon />, roles: BACK_OFFICE },
+  // stock lookup by scanning; cashiers need it on the shop floor too
+  { key: 'stockCheck', href: '/inventory/check', icon: <QrCodeScannerIcon /> },
   { key: 'suppliers', href: '/suppliers', icon: <LocalShippingIcon />, roles: BACK_OFFICE },
   { key: 'promotions', href: '/promotions', icon: <LocalOfferIcon />, roles: BACK_OFFICE },
   { key: 'members', href: '/members', icon: <GroupsIcon />, roles: BACK_OFFICE },
