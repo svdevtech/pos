@@ -598,8 +598,7 @@ const main = async () => {
     assert(/select/i.test(sql), `the query shown does not look like a SELECT: ${sql.slice(0, 60)}`);
     assert(!/insert|update|delete|drop/i.test(sql), 'the assistant produced a writing statement');
     assert(answer.trim().length > 20, 'the answer is empty');
-    return answer.split('
-').filter(Boolean)[1]?.slice(0, 80) ?? 'ตอบแล้ว';
+    return answer.split(String.fromCharCode(10)).filter(Boolean)[1]?.slice(0, 80) ?? 'ตอบแล้ว';
   });
 
   // ------------------------------------------------------- O. security/roles

@@ -17,6 +17,8 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import RequireAuth from '@/components/RequireAuth';
@@ -150,7 +152,22 @@ function AiContent() {
       {answer && (
         <GlassCard title={t('answerTitle')} data-testid="ai-answer">
           <Stack spacing={2}>
-            {answer.explanation && <Typography variant="body1">{answer.explanation}</Typography>}
+            {answer.explanation && (
+              // the model answers in markdown (bold figures, bullet lists), so render it as such
+              <Box
+                sx={{
+                  '& p': { m: 0, mb: 1, typography: 'body1' },
+                  '& p:last-child': { mb: 0 },
+                  '& ul, & ol': { pl: 3, m: 0, mb: 1 },
+                  '& li': { typography: 'body1' },
+                  '& strong': { fontWeight: 700 },
+                  '& table': { borderCollapse: 'collapse', mb: 1 },
+                  '& th, & td': { border: '1px solid', borderColor: 'divider', px: 1, py: 0.5 },
+                }}
+              >
+                <Markdown remarkPlugins={[remarkGfm]}>{answer.explanation}</Markdown>
+              </Box>
+            )}
             {(answer.warnings ?? []).map((w) => (
               <Alert key={w} severity="warning">
                 {w}
