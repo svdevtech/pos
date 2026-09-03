@@ -107,7 +107,8 @@
     "openPos": "Open POS",
     "suppliers": "Suppliers",
     "promotions": "Promotions",
-    "help": "Manual"
+    "help": "Manual",
+    "hideMenu": "Hide menu"
   },
   "errors": {
     "AUTH_LOGIN_FAILED": "Incorrect store code, username or password",

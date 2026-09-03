@@ -11,6 +11,8 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import Tooltip from '@mui/material/Tooltip';
 import PersonIcon from '@mui/icons-material/Person';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -38,12 +40,14 @@ import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import type { Role } from '@/lib/auth/session';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useSession } from './Providers';
 
 export const DRAWER_WIDTH = 248;
+/** Remembers whether the side menu is pinned open on wide screens. */
+const SIDEBAR_KEY = 'pos.sidebarOpen';
 
 type NavKey =
   | 'dashboard'
@@ -109,6 +113,23 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  // desktop: the menu can be hidden to give the page full width (remembered per device)
+  const [desktopOpen, setDesktopOpen] = useState(true);
+  useEffect(() => {
+    try {
+      setDesktopOpen(window.localStorage.getItem(SIDEBAR_KEY) !== '0');
+    } catch {
+      /* private mode */
+    }
+  }, []);
+  const toggleDesktop = (open: boolean) => {
+    setDesktopOpen(open);
+    try {
+      window.localStorage.setItem(SIDEBAR_KEY, open ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  };
 
   const visible = (items: NavItem[]) => items.filter((i) => !i.roles || hasRole(...i.roles));
   const storeItems = isPlatformAdmin && !store ? [] : visible(NAV_ITEMS);
@@ -140,7 +161,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
         >
           {tc('appName').slice(0, 1)}
         </Avatar>
-        <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="subtitle1" fontWeight={700} noWrap>
             {tc('appName')}
           </Typography>
@@ -150,6 +171,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </Typography>
           )}
         </Box>
+        <Tooltip title={tn('hideMenu')}>
+          <IconButton
+            size="small"
+            aria-label={tn('hideMenu')}
+            onClick={() => (window.innerWidth < 900 ? setMobileOpen(false) : toggleDesktop(false))}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+        </Tooltip>
       </Toolbar>
       <Divider />
       <List sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
@@ -189,15 +219,19 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar position="fixed" sx={{ zIndex: (th) => th.zIndex.drawer + 1 }}>
         <Toolbar sx={{ gap: 1 }}>
-          <IconButton
-            color="inherit"
-            edge="start"
-            aria-label={tn('openMenu')}
-            onClick={() => setMobileOpen((v) => !v)}
-            sx={{ display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
+          <Tooltip title={desktopOpen ? tn('hideMenu') : tn('openMenu')}>
+            <IconButton
+              color="inherit"
+              edge="start"
+              aria-label={desktopOpen ? tn('hideMenu') : tn('openMenu')}
+              onClick={() => {
+                if (window.innerWidth < 900) setMobileOpen((v) => !v);
+                else toggleDesktop(!desktopOpen);
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+          </Tooltip>
           <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 700 }}>
             {title}
           </Typography>
@@ -269,20 +303,27 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
         </Toolbar>
       </AppBar>
 
-      <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }} aria-label={tn('menu')}>
+      <Box
+        component="nav"
+        sx={{ width: { xs: 0, md: desktopOpen ? DRAWER_WIDTH : 0 }, flexShrink: { md: 0 }, transition: 'width 180ms ease' }}
+        aria-label={tn('menu')}
+      >
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
           ModalProps={{ keepMounted: true }}
-          sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH } }}
+          sx={{
+            display: { xs: 'block', md: desktopOpen ? 'none' : 'block' },
+            '& .MuiDrawer-paper': { width: DRAWER_WIDTH },
+          }}
         >
           {drawer}
         </Drawer>
         <Drawer
           variant="permanent"
           open
-          sx={{ display: { xs: 'none', md: 'block' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH } }}
+          sx={{ display: { xs: 'none', md: desktopOpen ? 'block' : 'none' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH } }}
         >
           {drawer}
         </Drawer>
@@ -294,7 +335,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           flexGrow: 1,
           minWidth: 0,
           p: { xs: 2, md: 3 },
-          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          width: { xs: '100%', md: desktopOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%' },
+          transition: 'width 180ms ease',
         }}
       >
         <Toolbar />

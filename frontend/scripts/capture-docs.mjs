@@ -20,6 +20,80 @@ const STORE = process.env.STORE ?? 'BBR';
 const USER = process.env.USER_NAME ?? 'owner';
 const PASS = process.env.PASS ?? 'Owner12345';
 const BARCODES = ['8851123212021', '8850987101175'];
+// the manual is public: never show a real shop's name in the screenshots
+const DEMO_NAME = process.env.DEMO_STORE_NAME ?? 'ร้านค้าสหกรณ์ตัวอย่าง';
+const DEMO_NAME_EN = process.env.DEMO_STORE_NAME_EN ?? 'Demo Co-op Store';
+
+/** The header reads the store from the saved session; settings pages read GET /store. */
+const maskStoreName = async (ctx) => {
+  await ctx.route('**/api/v1/store', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const res = await route.fetch();
+    let body = await res.text();
+    try {
+      const json = JSON.parse(body);
+      json.name = DEMO_NAME;
+      json.name_en = DEMO_NAME_EN;
+      json.address = 'เลขที่ 1 หมู่ 1 ตำบลตัวอย่าง อำเภอตัวอย่าง จังหวัดตัวอย่าง';
+      json.phone = '0X-XXX-XXXX';
+      body = JSON.stringify(json);
+    } catch {
+      /* not JSON - pass through */
+    }
+    await route.fulfill({ status: res.status(), contentType: 'application/json', body });
+  });
+};
+
+/** Renames the store inside the stored session so the app bar shows the demo name. */
+const maskSession = async (page) => {
+  await page.evaluate(
+    ({ name, nameEn }) => {
+      const raw = window.localStorage.getItem('pos.session');
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.store) {
+        s.store.name = name;
+        s.store.name_en = nameEn;
+      }
+      window.localStorage.setItem('pos.session', JSON.stringify(s));
+    },
+    { name: DEMO_NAME, nameEn: DEMO_NAME_EN },
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+};
+
+
+/** Opens a shift and, when the day is still empty, posts a few small cash sales so the
+ *  dashboard/POS screenshots show realistic numbers instead of zeros. */
+const seedDay = async (page, barcodes) => {
+  await page.evaluate(async (codes) => {
+    const s = JSON.parse(window.localStorage.getItem('pos.session') ?? '{}');
+    if (!s.access_token) return;
+    const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${s.access_token}` };
+    const shift = await fetch('/api/v1/shifts/current', { headers: h }).then((r) => r.json()).catch(() => null);
+    if (!shift?.shift) {
+      await fetch('/api/v1/shifts/open', { method: 'POST', headers: h, body: JSON.stringify({ terminal: 'POS1', opening_float: 1000 }) });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const summary = await fetch(`/api/v1/sales/summary?from=${today}&to=${today}`, { headers: h }).then((r) => r.json()).catch(() => null);
+    if (summary && Number(summary.bills) > 0) return;
+    const products = [];
+    for (const code of codes) {
+      const p = await fetch(`/api/v1/products/by-barcode/${code}`, { headers: h }).then((r) => (r.ok ? r.json() : null));
+      if (p) products.push(p);
+    }
+    if (!products.length) return;
+    for (const qty of [1, 2, 3]) {
+      const lines = products.map((p) => ({ product_id: p.id, qty, discount: 0, is_free: false }));
+      const net = products.reduce((sum, p) => sum + Number(p.sell_price) * qty, 0);
+      await fetch('/api/v1/sales', {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({ lines, payments: [{ method: 'cash', amount: Math.ceil(net / 20) * 20 }] }),
+      });
+    }
+  }, barcodes);
+};
 
 mkdirSync(outDir, { recursive: true });
 
@@ -49,6 +123,9 @@ const run = async () => {
   await page.getByRole('button', { name: /เข้าสู่ระบบ|Sign in/ }).click();
   await page.waitForURL(/\/(dashboard|pos)/, { timeout: 30_000 });
   await page.waitForLoadState('networkidle');
+  await maskStoreName(ctx);
+  await seedDay(page, BARCODES);
+  await maskSession(page);
 
   // ---- dashboard -----------------------------------------------------------
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
@@ -100,6 +177,8 @@ const run = async () => {
   await tp.getByLabel(/รหัสผ่าน|Password/).first().fill(PASS);
   await tp.getByRole('button', { name: /เข้าสู่ระบบ|Sign in/ }).click();
   await tp.waitForURL(/\/(dashboard|pos)/, { timeout: 30_000 });
+  await maskStoreName(tablet);
+  await maskSession(tp);
   await tp.goto(`${BASE}/pos`, { waitUntil: 'networkidle' });
   await tp.waitForTimeout(1200);
   const tscan = tp.getByPlaceholder(/สแกนบาร์โค้ด|Scan/);
