@@ -15,6 +15,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SavingsIcon from '@mui/icons-material/Savings';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
@@ -58,7 +59,8 @@ type NavKey =
   | 'dividends'
   | 'settings'
   | 'ai'
-  | 'stores';
+  | 'stores'
+  | 'help';
 
 interface NavItem {
   key: NavKey;
@@ -85,6 +87,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'dividends', href: '/dividends', icon: <SavingsIcon />, roles: BACK_OFFICE },
   { key: 'ai', href: '/ai', icon: <AutoAwesomeIcon />, roles: BACK_OFFICE },
   { key: 'settings', href: '/settings', icon: <SettingsIcon />, roles: BACK_OFFICE },
+  { key: 'help', href: '/help', icon: <MenuBookIcon /> },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [{ key: 'stores', href: '/admin/stores', icon: <StorefrontIcon />, roles: ['platform_admin'] }];

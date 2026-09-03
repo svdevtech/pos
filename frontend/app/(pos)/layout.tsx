@@ -6,6 +6,7 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import Toolbar from '@mui/material/Toolbar';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -20,6 +21,7 @@ import RequireAuth from '@/components/RequireAuth';
 function PosShell({ children }: { children: ReactNode }) {
   const t = useTranslations('common');
   const ts = useTranslations('settings');
+  const tn = useTranslations('nav');
   const locale = useLocale();
   const { session, store, logout } = useSession();
 
@@ -47,6 +49,11 @@ function PosShell({ children }: { children: ReactNode }) {
           <Tooltip title={t('dashboard')}>
             <IconButton color="inherit" component={Link} href="/dashboard" aria-label={t('dashboard')}>
               <DashboardIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={tn('help')}>
+            <IconButton color="inherit" component={Link} href="/help" aria-label={tn('help')}>
+              <MenuBookIcon />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('logout')}>

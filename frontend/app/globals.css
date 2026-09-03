@@ -22,3 +22,43 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Printing the in-app manual (and any page): hide chrome, keep the content readable on paper. */
+@media print {
+  .no-print,
+  header,
+  nav,
+  aside,
+  .MuiAppBar-root,
+  .MuiDrawer-root {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  #help-content {
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 0 !important;
+  }
+  #help-content table,
+  #help-content pre,
+  #help-content blockquote {
+    break-inside: avoid;
+  }
+  #help-content h2 {
+    break-before: page;
+  }
+  #help-content h2:first-of-type {
+    break-before: auto;
+  }
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 10px;
+  }
+}

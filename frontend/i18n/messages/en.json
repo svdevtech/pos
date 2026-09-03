@@ -106,7 +106,8 @@
     "openMenu": "Open menu",
     "openPos": "Open POS",
     "suppliers": "Suppliers",
-    "promotions": "Promotions"
+    "promotions": "Promotions",
+    "help": "Manual"
   },
   "errors": {
     "AUTH_LOGIN_FAILED": "Incorrect store code, username or password",
@@ -1273,5 +1274,22 @@
     "contact": "Contact store",
     "mockMode": "Mock mode (LINE not connected)",
     "placeholder": "The LIFF screen will be added in a later step"
+  },
+  "help": {
+    "title": "User manual",
+    "subtitle": "Full system manual — search a topic or print it",
+    "searchPlaceholder": "Search the manual",
+    "clearSearch": "Clear search",
+    "print": "Print manual",
+    "contents": "Contents",
+    "matches": "{count} matching section(s)",
+    "noResults": "No section matches your search",
+    "thaiOnly": "The manual is currently available in Thai only.",
+    "backToTop": "Back to top",
+    "backToDashboard": "Back to dashboard",
+    "docs": {
+      "userGuide": "User guide",
+      "dividendMath": "Dividend formulas"
+    }
   }
 }

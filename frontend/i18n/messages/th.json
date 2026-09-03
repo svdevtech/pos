@@ -106,7 +106,8 @@
     "openMenu": "เปิดเมนู",
     "openPos": "เปิดหน้าขาย",
     "suppliers": "ผู้จำหน่าย",
-    "promotions": "โปรโมชัน"
+    "promotions": "โปรโมชัน",
+    "help": "คู่มือ"
   },
   "errors": {
     "AUTH_LOGIN_FAILED": "รหัสร้าน ชื่อผู้ใช้ หรือรหัสผ่านไม่ถูกต้อง",
@@ -1273,5 +1274,22 @@
     "contact": "ติดต่อร้าน",
     "mockMode": "โหมดทดสอบ (ไม่ได้เชื่อม LINE)",
     "placeholder": "หน้าจอ LIFF จะถูกเพิ่มในขั้นตอนถัดไป"
+  },
+  "help": {
+    "title": "คู่มือการใช้งาน",
+    "subtitle": "คู่มือฉบับเต็มของระบบ ค้นหาหัวข้อหรือพิมพ์เก็บไว้ได้",
+    "searchPlaceholder": "ค้นหาในคู่มือ",
+    "clearSearch": "ล้างคำค้น",
+    "print": "พิมพ์คู่มือ",
+    "contents": "สารบัญ",
+    "matches": "พบ {count} หัวข้อที่ตรงกับคำค้น",
+    "noResults": "ไม่พบหัวข้อที่ตรงกับคำค้น",
+    "thaiOnly": "The manual is currently available in Thai only.",
+    "backToTop": "กลับขึ้นด้านบน",
+    "backToDashboard": "กลับแดชบอร์ด",
+    "docs": {
+      "userGuide": "คู่มือผู้ใช้งาน",
+      "dividendMath": "สูตรคำนวณปันผล"
+    }
   }
 }
