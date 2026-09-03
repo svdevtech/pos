@@ -2,12 +2,15 @@ package httptransport
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -29,6 +32,8 @@ type DataOpsService interface {
 	DeleteFile(ctx context.Context, actor storeuc.Actor, storeID uuid.UUID, name string) error
 	SaveUpload(storeID uuid.UUID, sub, name string, copyTo func(dst *os.File) error) (string, error)
 	StartRestore(ctx context.Context, actor storeuc.Actor, storeID uuid.UUID, path, label string, opt dataopsuc.RestoreOptions) (*dataopsuc.Job, error)
+	SignDownload(secret string, storeID uuid.UUID, name string) (string, time.Time, error)
+	VerifyDownload(secret string, storeID uuid.UUID, name, token string) (string, error)
 
 	StagedLegacyDump(storeID uuid.UUID) (*dataopsuc.LegacyDump, error)
 	StageLegacyDump(storeID uuid.UUID, archivePath, fileName string) (*dataopsuc.LegacyDump, error)
@@ -108,6 +113,26 @@ func (s *Server) mountDataOps(r chi.Router) {
 			w.Header().Set("Content-Type", "application/zip")
 			w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(path)+"\"")
 			http.ServeFile(w, r, path)
+		})
+		// A tablet cannot download 80 MB through fetch + <a download> (iOS ignores the attribute),
+		// so the UI asks for a short-lived signed link and lets the browser fetch the file itself.
+		r.Post("/backups/{name}/link", func(w http.ResponseWriter, r *http.Request) {
+			if s.DataOps == nil {
+				fail(w, r, domain.ErrFeatureDisabled)
+				return
+			}
+			sid := storeID(r)
+			name := chi.URLParam(r, "name")
+			token, expires, err := s.DataOps.SignDownload(s.Cfg.JWTSecret, sid, name)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, map[string]any{
+				"url": fmt.Sprintf("/api/v1/download/backup?store=%s&name=%s&t=%s",
+					sid, url.QueryEscape(name), url.QueryEscape(token)),
+				"expires_at": expires,
+			})
 		})
 		r.Delete("/backups/{name}", func(w http.ResponseWriter, r *http.Request) {
 			if s.DataOps == nil {
@@ -280,4 +305,31 @@ func firstValue(v []string) string {
 		return ""
 	}
 	return v[0]
+}
+
+// mountDownloads serves signed file links. It sits outside the authenticated group on purpose: the
+// browser's download manager cannot send an Authorization header, so the signature in the URL is
+// what authorises the request (5 minutes, one store, one file).
+func (s *Server) mountDownloads(r chi.Router) {
+	r.Get("/download/backup", func(w http.ResponseWriter, r *http.Request) {
+		if s.DataOps == nil {
+			fail(w, r, domain.ErrFeatureDisabled)
+			return
+		}
+		sid, err := uuid.Parse(r.URL.Query().Get("store"))
+		if err != nil {
+			fail(w, r, domain.ErrValidation.With("field", "store"))
+			return
+		}
+		name := r.URL.Query().Get("name")
+		path, err := s.DataOps.VerifyDownload(s.Cfg.JWTSecret, sid, name, r.URL.Query().Get("t"))
+		if err != nil {
+			fail(w, r, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(path)+"\"")
+		w.Header().Set("Cache-Control", "no-store")
+		http.ServeFile(w, r, path)
+	})
 }

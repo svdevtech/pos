@@ -167,15 +167,19 @@ export function useRunLegacyImport() {
   });
 }
 
-/** Downloads a backup through the API (so the Authorization header is sent) and saves it. */
+/**
+ * Hands the file to the browser's own download manager.
+ *
+ * Fetching the archive into a Blob and clicking a synthetic `<a download>` does not work where this
+ * is used most: iOS/iPadOS Safari ignores the `download` attribute, the click happens outside the
+ * user gesture (so it is blocked), and holding ~80 MB in memory can fail on its own. Instead the
+ * API signs a link that is valid for five minutes and the browser fetches it directly — no memory
+ * copy, a real progress bar, and it resumes.
+ */
 export async function downloadBackup(name: string): Promise<void> {
-  const blob = await api.get<Blob>(`/store/data/backups/${encodeURIComponent(name)}`, { responseType: 'blob' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const { url } = await api.post<{ url: string; expires_at: string }>(
+    `/store/data/backups/${encodeURIComponent(name)}/link`,
+  );
+  // same-origin navigation to an attachment: the page stays where it is and the browser downloads
+  window.location.assign(url);
 }
