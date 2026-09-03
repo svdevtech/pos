@@ -30,7 +30,7 @@ import CartGrid from '@/components/pos/CartGrid';
 import HeldBillsDialog from '@/components/pos/HeldBillsDialog';
 import MemberPicker, { MemberChip } from '@/components/pos/MemberPicker';
 import ProductSearchDialog from '@/components/pos/ProductSearchDialog';
-import ReceiptDialog, { readAutoPrintOverride, writeAutoPrint } from '@/components/pos/ReceiptPrint';
+import ReceiptDialog, { readPrintReceiptOverride, writePrintReceipt } from '@/components/pos/ReceiptPrint';
 import ScanInput, { type ScanInputHandle } from '@/components/pos/ScanInput';
 import ShiftOpenDialog, { readTerminal } from '@/components/pos/ShiftOpenDialog';
 import TenderDialog from '@/components/pos/TenderDialog';
@@ -132,7 +132,7 @@ export default function PosPage() {
   const requireShift = Boolean(settings.data?.require_shift);
   // printing default: the cashier's own choice on this device wins, otherwise the store setting
   const [printOverride, setPrintOverride] = useState<boolean | null>(null);
-  useEffect(() => setPrintOverride(readAutoPrintOverride()), []);
+  useEffect(() => setPrintOverride(readPrintReceiptOverride()), []);
   const printReceiptDefault = printOverride ?? (settings.data?.auto_print_receipt ?? true);
   const allowPriceEdit = Boolean(settings.data?.allow_price_edit);
 
@@ -596,7 +596,7 @@ export default function PosPage() {
         onConfirm={(payments, print) => createSale.mutate({ payments, print })}
         defaultPrintReceipt={printReceiptDefault}
         onPrintReceiptChange={(on) => {
-          writeAutoPrint(on);
+          writePrintReceipt(on);
           setPrintOverride(on);
         }}
       />

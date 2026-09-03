@@ -243,6 +243,8 @@
     "cancelledBy": "Cancelled by",
     "cashSales": "Cash sales",
     "clearCash": "Clear cash",
+    "clearAmount": "Clear amount",
+    "backspace": "Backspace",
     "close": "Close",
     "closedAt": "Closed at",
     "confirm": "Confirm",

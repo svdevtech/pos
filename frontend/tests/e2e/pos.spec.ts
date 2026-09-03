@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { devices, expect, test, type Page, type Route } from '@playwright/test';
 
 /**
  * POS cashier flow: scan -> tender -> receipt, fully mocked at the network layer
@@ -207,12 +207,12 @@ test.describe('POS cashier screen', () => {
     await scan.fill(BARCODE);
     await scan.press('Enter');
     await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('line-total')).toHaveText('25.00');
+    await expect(page.getByTestId('line-total')).toHaveText('25');
 
     await scan.fill(`2*${BARCODE}`);
     await scan.press('Enter');
     await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('line-total')).toHaveText('75.00');
+    await expect(page.getByTestId('line-total')).toHaveText('75');
 
     // Server quote drives the totals card.
     await expect.poll(() => captured.quotes.length).toBeGreaterThan(0);
@@ -303,5 +303,54 @@ test.describe('POS cashier screen', () => {
     expect(body.cart.version).toBe(1);
     expect(body.cart.lines[0]).toMatchObject({ product_id: PRODUCT_ID, qty: 1 });
     await expect(page.getByTestId('cart-line')).toHaveCount(0);
+  });
+});
+
+/**
+ * Tablets get an in-dialog numeric keypad instead of the OS keyboard, which would otherwise
+ * cover most of the payment dialog on an iPad.
+ */
+test.describe('POS payment dialog on a tablet', () => {
+  // keep the chromium browser from the project config; take only the device traits
+  const { defaultBrowserType: _browser, userAgent: _ua, ...ipad } = devices['iPad (gen 7)'];
+  test.use({ ...ipad, locale: 'th-TH' });
+
+  test('numeric keypad replaces the on-screen keyboard', async ({ page }) => {
+    const captured = await mockApi(page);
+    await page.goto('/pos');
+
+    const scan = page.getByTestId('scan-input');
+    await scan.fill(BARCODE);
+    await scan.press('Enter');
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+
+    // the sticky bottom bar and the sidebar both carry the button; click the visible one
+    await page.locator('[data-testid="pay-button"]:visible').first().click();
+
+    // The amount field must not request the OS keyboard.
+    const amount = page.getByTestId('tender-amount-cash');
+    await expect(amount).toHaveAttribute('inputmode', 'none');
+    await expect(amount).toHaveAttribute('readonly', '');
+
+    // Typing happens through the keypad: 5 0 -> 50, backspace -> 5, C -> empty.
+    await page.getByTestId('keypad-5').click();
+    await page.getByTestId('keypad-0').click();
+    await expect(amount).toHaveValue('50');
+    await expect(page.getByTestId('tender-change')).toHaveText('฿ 25.00');
+
+    await page.getByTestId('keypad-back').click();
+    await expect(amount).toHaveValue('5');
+    await page.getByTestId('keypad-clear').click();
+    await expect(amount).toHaveValue('');
+    await expect(page.getByTestId('tender-confirm')).toBeDisabled();
+
+    await page.getByTestId('keypad-1').click();
+    await page.getByTestId('keypad-00').click();
+    await expect(amount).toHaveValue('100');
+    await page.getByTestId('tender-confirm').click();
+
+    await expect.poll(() => captured.sales.length).toBe(1);
+    const body = captured.sales[0] as { payments: Array<{ method: string; amount: number }> };
+    expect(body.payments).toEqual([{ method: 'cash', amount: 100 }]);
   });
 });

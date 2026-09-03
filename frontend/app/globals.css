@@ -108,3 +108,14 @@ html.kb-open .MuiPopover-paper,
 html.kb-open .MuiMenu-paper {
   max-height: calc(var(--vvh, 100dvh) - 32px);
 }
+
+/* Very little room left (landscape tablet + keyboard): let the dialog use the full width */
+@media (max-height: 480px) {
+  html.kb-open .MuiDialog-container .MuiDialog-paper {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 12px;
+  }
+}

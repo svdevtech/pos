@@ -15,6 +15,7 @@ import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
+import NumericKeypad, { applyKey, isCoarsePointer } from '@/components/pos/NumericKeypad';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
 import { PAYMENT_METHODS, money, type Member, type PaymentMethod, type TenderInput } from '@/lib/pos/types';
@@ -91,13 +92,19 @@ export default function TenderDialog({
   onPrintReceiptChange,
 }: Props) {
   const [printReceipt, setPrintReceipt] = useState(defaultPrintReceipt);
+  // tablets: type with the built-in keypad so the OS keyboard never covers the dialog
+  const [touch, setTouch] = useState(false);
+  useEffect(() => setTouch(isCoarsePointer()), []);
+  const [activeRow, setActiveRow] = useState<number | null>(null);
   const t = useTranslations('pos');
   const locale = resolveLocale(useLocale());
   const [rows, setRows] = useState<Row[]>([newRow('cash')]);
 
   useEffect(() => {
     if (open) {
-      setRows([newRow('cash', '')]);
+      const first = newRow('cash', '');
+      setRows([first]);
+      setActiveRow(first.id);
       setPrintReceipt(defaultPrintReceipt);
     }
   }, [open, defaultPrintReceipt]);
@@ -241,14 +248,31 @@ export default function TenderDialog({
                 </GlassInput>
                 <GlassInput
                   size="small"
-                  type="number"
+                  type={touch ? 'text' : 'number'}
                   value={r.method === 'credit' ? String(s.credit) : r.amount}
                   onChange={(e) => update(r.id, { amount: e.target.value })}
-                  onFocus={(e) => e.target.select()}
-                  autoFocus={r.method === 'cash' && rows.length === 1}
+                  onFocus={(e) => {
+                    setActiveRow(r.id);
+                    if (!touch) e.target.select();
+                  }}
+                  onClick={() => setActiveRow(r.id)}
+                  autoFocus={!touch && r.method === 'cash' && rows.length === 1}
                   placeholder="0.00"
                   helperText={r.method === 'credit' ? t('creditRemainderHint') : undefined}
-                  inputProps={{ min: 0, step: 0.25, inputMode: 'decimal', 'data-testid': `tender-amount-${r.method}`, style: { textAlign: 'right', fontSize: 20 } }}
+                  inputProps={{
+                    min: 0,
+                    step: 0.25,
+                    // 'none' keeps the OS keyboard closed; the dialog's own keypad is used instead
+                    inputMode: touch ? 'none' : 'decimal',
+                    readOnly: touch,
+                    'data-testid': `tender-amount-${r.method}`,
+                    style: { textAlign: 'right', fontSize: 20 },
+                  }}
+                  sx={
+                    touch && activeRow === r.id
+                      ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main', borderWidth: 2 } }
+                      : undefined
+                  }
                   disabled={r.method === 'credit'}
                 />
                 {NEEDS_REFERENCE.includes(r.method) && (
@@ -294,6 +318,17 @@ export default function TenderDialog({
               </GlassButton>
             </Stack>
 
+            {touch && (
+              <NumericKeypad
+                disabled={!activeRow || rows.find((r) => r.id === activeRow)?.method === 'credit'}
+                onKey={(k) => {
+                  const row = rows.find((r) => r.id === activeRow) ?? rows[0];
+                  if (!row || row.method === 'credit') return;
+                  update(row.id, { amount: applyKey(row.amount, k) });
+                }}
+              />
+            )}
+
             <Divider />
             <FormControlLabel
               control={
@@ -328,13 +363,16 @@ export default function TenderDialog({
               border: (th) => `1px solid ${th.glass.border}`,
             }}
           >
-            <Typography variant="body2" color="text.secondary">
-              {t('amountDue')}
-            </Typography>
-            <Typography variant="h3" fontWeight={800} sx={{ fontVariantNumeric: 'tabular-nums' }} data-testid="tender-net">
-              {formatMoney(net, locale)}
-            </Typography>
-            <Divider sx={{ my: 1.5 }} />
+            {/* on tablets the sticky strip above already shows this, so don't spend the height twice */}
+            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+              <Typography variant="body2" color="text.secondary">
+                {t('amountDue')}
+              </Typography>
+              <Typography variant="h3" fontWeight={800} sx={{ fontVariantNumeric: 'tabular-nums' }} data-testid="tender-net">
+                {formatMoney(net, locale)}
+              </Typography>
+              <Divider sx={{ my: 1.5 }} />
+            </Box>
             <Stack spacing={0.5}>
               <Row label={t('methods.cash')} value={formatMoney(s.cash, locale)} />
               {s.nonCash > 0 && <Row label={t('nonCash')} value={formatMoney(s.nonCash, locale)} />}

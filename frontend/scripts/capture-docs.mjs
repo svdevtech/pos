@@ -8,7 +8,7 @@
  * Env: BASE (default http://localhost:3010), STORE, USER, PASS.
  * Only screens without personal data are captured (no member lists, no dividend statements).
  */
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -166,7 +166,8 @@ const run = async () => {
   }
 
   // ---- tablet portrait (the POS is used on iPads) --------------------------
-  const tablet = await browser.newContext({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 1, locale: 'th-TH' });
+  // a real touch device so the in-dialog numeric keypad (shown only on coarse pointers) is captured
+  const tablet = await browser.newContext({ ...devices['iPad (gen 7)'], deviceScaleFactor: 1, locale: 'th-TH' });
   await tablet.addInitScript(() => {
     window.print = () => {};
   });

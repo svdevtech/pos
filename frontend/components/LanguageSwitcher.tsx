@@ -49,7 +49,7 @@ export default function LanguageSwitcher({ size = 'small', sx }: Props) {
       sx={sx}
     >
       {locales.map((code) => (
-        <ToggleButton key={code} value={code} aria-label={code === 'th' ? t('thai') : t('english')} sx={{ px: 1.5 }}>
+        <ToggleButton key={code} value={code} aria-label={code === 'th' ? t('thai') : t('english')} data-testid={`lang-${code}`} sx={{ px: 1.5 }}>
           {code.toUpperCase()}
         </ToggleButton>
       ))}

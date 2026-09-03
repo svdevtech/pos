@@ -10,7 +10,7 @@ test.describe('login page i18n', () => {
     await expect(page.getByRole('button', { name: 'เข้าสู่ระบบ' })).toBeVisible();
 
     // Switch to English through the language toggle.
-    await page.getByRole('button', { name: 'EN' }).click();
+    await page.getByTestId('lang-en').click();
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByLabel('Username')).toBeVisible();
 
@@ -19,7 +19,7 @@ test.describe('login page i18n', () => {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
     // And back to Thai.
-    await page.getByRole('button', { name: 'TH' }).click();
+    await page.getByTestId('lang-th').click();
     await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบ' })).toBeVisible();
   });
 });

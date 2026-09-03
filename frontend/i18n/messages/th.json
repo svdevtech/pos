@@ -243,6 +243,8 @@
     "cancelledBy": "ยกเลิกโดย",
     "cashSales": "ขายเงินสด",
     "clearCash": "ล้างเงินสด",
+    "clearAmount": "ล้างจำนวนเงิน",
+    "backspace": "ลบตัวเลขท้าย",
     "close": "ปิด",
     "closedAt": "ปิดกะเมื่อ",
     "confirm": "ยืนยัน",

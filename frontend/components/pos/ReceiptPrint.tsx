@@ -16,12 +16,15 @@ import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
 import { posApi, posKeys } from '@/lib/pos/api';
 import { dec, type PaymentMethod, type ReceiptData } from '@/lib/pos/types';
 
+/** Auto-send to the printer as soon as the receipt dialog opens (checkbox in that dialog). */
 export const AUTO_PRINT_KEY = 'pos.autoPrint';
+/** The cashier's per-device "print the receipt for this sale" choice (checkbox in the tender dialog). */
+export const PRINT_RECEIPT_KEY = 'pos.printReceipt';
 
 /** The cashier's explicit choice on this device, or null when they never changed it. */
-export function readAutoPrintOverride(): boolean | null {
+export function readPrintReceiptOverride(): boolean | null {
   try {
-    const v = window.localStorage.getItem(AUTO_PRINT_KEY);
+    const v = window.localStorage.getItem(PRINT_RECEIPT_KEY);
     return v === null ? null : v === '1';
   } catch {
     return null;
@@ -40,6 +43,14 @@ export function readAutoPrint(): boolean {
 export function writeAutoPrint(on: boolean): void {
   try {
     window.localStorage.setItem(AUTO_PRINT_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+}
+
+export function writePrintReceipt(on: boolean): void {
+  try {
+    window.localStorage.setItem(PRINT_RECEIPT_KEY, on ? '1' : '0');
   } catch {
     // ignore
   }
