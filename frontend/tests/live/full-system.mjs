@@ -73,6 +73,17 @@ const api = (page, path, init) =>
     [path, init ?? {}],
   );
 
+
+/** Types into a product autocomplete and picks the row that really matches the SKU. */
+const pickProduct = async (page, label, sku) => {
+  const box = page.getByRole('combobox', { name: label });
+  await box.click();
+  await box.fill(sku);
+  const option = page.getByRole('option').filter({ hasText: sku }).first();
+  await option.waitFor({ timeout: 20_000 });
+  await option.click();
+};
+
 const login = async (page, user = USER, pass = PASS) => {
   await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   await page.getByLabel(L('auth.storeCode')).fill(STORE);
@@ -112,16 +123,23 @@ const main = async () => {
 
   await step('A3', 'สลับภาษา ไทย ↔ อังกฤษ', async () => {
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
-    const heading = () => page.locator('h1, h4').nth(1).innerText();
-    await page.getByTestId('lang-en').click();
-    await page.waitForTimeout(1500);
-    const en = await heading();
-    await page.getByTestId('lang-th').click();
-    await page.waitForTimeout(1500);
-    const back = await heading();
-    assert(en !== back, `language toggle did nothing (${en})`);
-    return `${en} ↔ ${back}`;
+    const nav = () => page.getByRole('navigation').first().innerText();
+    try {
+      const thai = await nav();
+      await page.getByTestId('lang-en').click();
+      await page.waitForTimeout(2000);
+      const english = await nav();
+      assert(english.includes('Dashboard'), `English menu missing: ${english.slice(0, 40)}`);
+      assert(thai !== english, 'the language toggle changed nothing');
+      return `${thai.split('\n')[0]} ↔ ${english.split('\n')[0]}`;
+    } finally {
+      // always return to Thai: the locale cookie would otherwise follow the whole run
+      await page.getByTestId('lang-th').click().catch(() => {});
+      await page.waitForTimeout(1500);
+    }
   });
+
+  await ctx.addCookies([{ name: 'NEXT_LOCALE', value: 'th', url: BASE }]);
 
   // ------------------------------------------------------------- B. POS sale
   await step('B0', 'เปิดกะขาย (ถ้ายังไม่เปิด)', async () => {
@@ -280,10 +298,7 @@ const main = async () => {
   // --------------------------------------------------------- F. inventory ops
   await step('F1', 'รับสินค้าเข้า (เพิ่มสต็อก + ต้นทุนเฉลี่ย)', async () => {
     await page.goto(`${BASE}/inventory/receipts/new`, { waitUntil: 'domcontentloaded' });
-    const picker = page.getByLabel(L('inventory.addLine'));
-    await picker.waitFor({ timeout: 20_000 });
-    await picker.fill(`${RUN}-PACK`);
-    await page.getByRole('option').first().click();
+    await pickProduct(page, L('inventory.addLine'), `${RUN}-PACK`);
     await page.getByTestId('receipt-qty').first().fill('10');
     await page.getByTestId('receipt-cost').first().fill('500');
     await page.getByRole('button', { name: L('inventory.postReceipt') }).click();
@@ -295,10 +310,7 @@ const main = async () => {
 
   await step('F2', 'ปรับปรุงสต็อก −2', async () => {
     await page.goto(`${BASE}/inventory/adjustments/new`, { waitUntil: 'domcontentloaded' });
-    const picker = page.getByLabel(L('inventory.addLine'));
-    await picker.waitFor({ timeout: 20_000 });
-    await picker.fill(`${RUN}-PACK`);
-    await page.getByRole('option').first().click();
+    await pickProduct(page, L('inventory.addLine'), `${RUN}-PACK`);
     await page.getByTestId('adjust-qty').first().fill('-2');
     await page.getByRole('button', { name: L('inventory.postAdjustment') }).click();
     await page.waitForTimeout(3000);
@@ -326,15 +338,14 @@ const main = async () => {
     assert(created.status === 201, `create bottle ${created.status}`);
     state.unit = created.body;
     await page.goto(`${BASE}/inventory/conversions`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel(L('conversions.fromProduct')).fill(`${RUN}-PACK`);
-    await page.getByRole('option').first().click();
-    await page.getByLabel(L('conversions.toProduct')).fill(`${RUN}-UNIT`);
-    await page.getByRole('option').first().click();
+    await pickProduct(page, L('conversions.fromProduct'), `${RUN}-PACK`);
+    await pickProduct(page, L('conversions.toProduct'), `${RUN}-UNIT`);
     await page.getByTestId('conv-factor').fill('12');
     await page.getByTestId('conv-save-rule').click();
     await page.waitForTimeout(2500);
     const rules = await api(page, `/inventory/conversion-rules?from_product_id=${state.pack.id}`);
     assert((rules.body ?? []).length === 1, 'the conversion rule was not saved');
+    assert(rules.body[0].to_product_id === state.unit.id, `the rule points at ${rules.body[0].to_name} instead of the bottle`);
     return '1 ลัง = 12 ขวด';
   });
 
@@ -417,13 +428,15 @@ const main = async () => {
     await page.goto(`${BASE}/pos`, { waitUntil: 'domcontentloaded' });
     await page.getByTestId('scan-input').waitFor({ timeout: 30_000 });
     await page.keyboard.press('F3');
-    const search = page.getByRole('textbox').last();
+    const search = page.getByTestId('member-search');
+    await search.waitFor({ timeout: 15_000 });
     await search.fill(RUN);
-    await page.waitForTimeout(1800);
-    await page.getByRole('option').first().click().catch(async () => {
-      await page.getByText(`${RUN} สมาชิกทดสอบ`).first().click();
-    });
+    const hit = page.getByRole('button').filter({ hasText: RUN }).first();
+    await hit.waitFor({ timeout: 15_000 });
+    await hit.click();
     await page.waitForTimeout(1200);
+    const chip = await page.getByTestId('member-chip').innerText();
+    assert(chip.includes(RUN), `the member chip shows ${chip}`);
     const scan = page.getByTestId('scan-input');
     await scan.fill(state.product.primary_barcode);
     await scan.press('Enter');
@@ -431,8 +444,8 @@ const main = async () => {
     await page.getByTestId('pay-button').first().click();
     await page.getByTestId('tender-confirm').waitFor({ timeout: 15_000 });
     // switch the first tender row to credit
-    await page.getByLabel(L('pos.paymentMethod')).first().click();
-    await page.getByRole('option', { name: L('pos.methods.credit') }).click();
+    await page.getByRole('combobox', { name: L('pos.paymentMethod') }).first().click();
+    await page.getByRole('option', { name: L('pos.methods.credit'), exact: true }).click();
     await page.getByTestId('tender-confirm').click();
     await page.waitForTimeout(3500);
     const ar = await api(page, `/ar/accounts?q=${encodeURIComponent(RUN)}`);

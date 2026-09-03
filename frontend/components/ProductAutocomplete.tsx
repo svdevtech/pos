@@ -44,7 +44,8 @@ export default function ProductAutocomplete({
   const t = useTranslations('products');
   const locale = resolveLocale(useLocale());
   const [input, setInput] = useState('');
-  const [options, setOptions] = useState<Product[]>([]);
+  // the results and the query they answer, so a stale list is never offered for a newer query
+  const [result, setResult] = useState<{ query: string; items: Product[] }>({ query: '', items: [] });
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -52,14 +53,15 @@ export default function ProductAutocomplete({
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const query = input.trim();
     setLoading(true);
     const timer = setTimeout(() => {
-      searchProducts(input.trim(), controller.signal)
+      searchProducts(query, controller.signal)
         .then((items) => {
-          if (!controller.signal.aborted) setOptions(items);
+          if (!controller.signal.aborted) setResult({ query, items });
         })
         .catch(() => {
-          if (!controller.signal.aborted) setOptions([]);
+          if (!controller.signal.aborted) setResult({ query, items: [] });
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -71,10 +73,12 @@ export default function ProductAutocomplete({
     };
   }, [input]);
 
-  const visible = useMemo(
-    () => (excludeIds?.length ? options.filter((o) => !excludeIds.includes(o.id)) : options),
-    [options, excludeIds],
-  );
+  const visible = useMemo(() => {
+    // while the typed text has moved on, show nothing rather than the previous product: a quick
+    // tap must never pick a row that does not match what is in the box
+    if (result.query !== input.trim()) return [];
+    return excludeIds?.length ? result.items.filter((o) => !excludeIds.includes(o.id)) : result.items;
+  }, [result, input, excludeIds]);
 
   const displayName = (p: Product) => (locale === 'en' && p.name_en ? p.name_en : p.name);
 
