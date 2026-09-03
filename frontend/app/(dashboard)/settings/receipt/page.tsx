@@ -27,6 +27,7 @@ interface Values {
   allow_price_edit: boolean;
   require_shift: boolean;
   allow_negative_stock: boolean;
+  keypad_mode: 'auto' | 'always' | 'off';
   drawer_port: string;
   display_port: string;
   rounding: string;
@@ -44,6 +45,7 @@ function fromSettings(s: StoreSettings): Values {
     allow_price_edit: s.allow_price_edit ?? false,
     require_shift: s.require_shift ?? true,
     allow_negative_stock: s.allow_negative_stock ?? false,
+    keypad_mode: s.keypad_mode === 'always' || s.keypad_mode === 'off' ? s.keypad_mode : 'auto',
     drawer_port: s.drawer_port ?? '',
     display_port: s.display_port ?? '',
     rounding: s.rounding === undefined || s.rounding === null ? '0' : String(s.rounding),
@@ -60,6 +62,7 @@ function toSettings(current: StoreSettings, v: Values): StoreSettings {
     allow_price_edit: v.allow_price_edit,
     require_shift: v.require_shift,
     allow_negative_stock: v.allow_negative_stock,
+    keypad_mode: v.keypad_mode,
     drawer_port: v.drawer_port.trim(),
     display_port: v.display_port.trim(),
     rounding: Number(v.rounding),
@@ -165,6 +168,17 @@ function ReceiptSettingsContent() {
                     {toggle('require_shift', t('requireShiftHint'))}
                     {toggle('allow_price_edit', t('allowPriceEditHint'))}
                     {toggle('allow_negative_stock', t('allowNegativeStockHint'))}
+                    <GlassInput
+                      select
+                      label={t('keypadMode')}
+                      value={values.keypad_mode}
+                      onChange={(e) => set('keypad_mode', e.target.value as Values['keypad_mode'])}
+                      helperText={t('keypadModeHint')}
+                    >
+                      <MenuItem value="auto">{t('keypadAuto')}</MenuItem>
+                      <MenuItem value="always">{t('keypadAlways')}</MenuItem>
+                      <MenuItem value="off">{t('keypadOff')}</MenuItem>
+                    </GlassInput>
                   </Stack>
                 </GlassCard>
                 <GlassCard title={t('hardware')} subtitle={t('portHint')}>

@@ -12,6 +12,8 @@ export interface StoreSettings {
   allow_price_edit?: boolean;
   require_shift?: boolean;
   allow_negative_stock?: boolean;
+  /** POS payment dialog keypad: auto (touch devices), always, off. */
+  keypad_mode?: 'auto' | 'always' | 'off' | string;
   drawer_port?: string;
   display_port?: string;
   rounding?: number | string;

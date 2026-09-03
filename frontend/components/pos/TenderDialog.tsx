@@ -2,6 +2,7 @@
 
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DialpadIcon from '@mui/icons-material/Dialpad';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -15,7 +16,7 @@ import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
-import NumericKeypad, { applyKey, isCoarsePointer } from '@/components/pos/NumericKeypad';
+import NumericKeypad, { applyKey, keypadDefault, readKeypadOverride, writeKeypad, type KeypadMode } from '@/components/pos/NumericKeypad';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
 import { PAYMENT_METHODS, money, type Member, type PaymentMethod, type TenderInput } from '@/lib/pos/types';
@@ -38,6 +39,8 @@ interface Props {
   defaultPrintReceipt?: boolean;
   /** Persists the cashier's choice for the next bill. */
   onPrintReceiptChange?: (on: boolean) => void;
+  /** Store setting: `auto` shows the numeric keypad on touch devices, `always`/`off` force it. */
+  keypadMode?: KeypadMode;
   busy?: boolean;
   error?: string | null;
 }
@@ -90,11 +93,13 @@ export default function TenderDialog({
   error,
   defaultPrintReceipt = true,
   onPrintReceiptChange,
+  keypadMode = 'auto',
 }: Props) {
   const [printReceipt, setPrintReceipt] = useState(defaultPrintReceipt);
-  // tablets: type with the built-in keypad so the OS keyboard never covers the dialog
-  const [touch, setTouch] = useState(false);
-  useEffect(() => setTouch(isCoarsePointer()), []);
+  // The built-in keypad replaces the OS keyboard, which would otherwise cover the dialog on a
+  // tablet. The store setting decides whether it opens by itself; the button below overrides that
+  // on this device.
+  const [keypadOn, setKeypadOn] = useState(false);
   const [activeRow, setActiveRow] = useState<number | null>(null);
   const t = useTranslations('pos');
   const locale = resolveLocale(useLocale());
@@ -106,8 +111,9 @@ export default function TenderDialog({
       setRows([first]);
       setActiveRow(first.id);
       setPrintReceipt(defaultPrintReceipt);
+      setKeypadOn(readKeypadOverride() ?? keypadDefault(keypadMode));
     }
-  }, [open, defaultPrintReceipt]);
+  }, [open, defaultPrintReceipt, keypadMode]);
 
   const creditAllowed = Boolean(member && !member.is_walkin);
   const s = useMemo(() => settle(net, rows), [net, rows]);
@@ -248,28 +254,28 @@ export default function TenderDialog({
                 </GlassInput>
                 <GlassInput
                   size="small"
-                  type={touch ? 'text' : 'number'}
+                  type={keypadOn ? 'text' : 'number'}
                   value={r.method === 'credit' ? String(s.credit) : r.amount}
                   onChange={(e) => update(r.id, { amount: e.target.value })}
                   onFocus={(e) => {
                     setActiveRow(r.id);
-                    if (!touch) e.target.select();
+                    if (!keypadOn) e.target.select();
                   }}
                   onClick={() => setActiveRow(r.id)}
-                  autoFocus={!touch && r.method === 'cash' && rows.length === 1}
+                  autoFocus={!keypadOn && r.method === 'cash' && rows.length === 1}
                   placeholder="0.00"
                   helperText={r.method === 'credit' ? t('creditRemainderHint') : undefined}
                   inputProps={{
                     min: 0,
                     step: 0.25,
                     // 'none' keeps the OS keyboard closed; the dialog's own keypad is used instead
-                    inputMode: touch ? 'none' : 'decimal',
-                    readOnly: touch,
+                    inputMode: keypadOn ? 'none' : 'decimal',
+                    readOnly: keypadOn,
                     'data-testid': `tender-amount-${r.method}`,
                     style: { textAlign: 'right', fontSize: 20 },
                   }}
                   sx={
-                    touch && activeRow === r.id
+                    keypadOn && activeRow === r.id
                       ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main', borderWidth: 2 } }
                       : undefined
                   }
@@ -318,7 +324,23 @@ export default function TenderDialog({
               </GlassButton>
             </Stack>
 
-            {touch && (
+            <Box>
+              <GlassButton
+                variant="text"
+                size="small"
+                startIcon={<DialpadIcon />}
+                onClick={() => {
+                  const next = !keypadOn;
+                  setKeypadOn(next);
+                  writeKeypad(next); // remember it for this device
+                }}
+                data-testid="keypad-toggle"
+              >
+                {keypadOn ? t('hideKeypad') : t('showKeypad')}
+              </GlassButton>
+            </Box>
+
+            {keypadOn && (
               <NumericKeypad
                 disabled={!activeRow || rows.find((r) => r.id === activeRow)?.method === 'credit'}
                 onKey={(k) => {

@@ -5,6 +5,36 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import { useTranslations } from 'next-intl';
 
+/** Per-device choice to show/hide the keypad; overrides the store's `keypad_mode` setting. */
+export const KEYPAD_KEY = 'pos.keypad';
+
+export type KeypadMode = 'auto' | 'always' | 'off';
+
+/** The cashier's own choice on this device, or null when they never touched the button. */
+export function readKeypadOverride(): boolean | null {
+  try {
+    const v = window.localStorage.getItem(KEYPAD_KEY);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
+
+export function writeKeypad(on: boolean): void {
+  try {
+    window.localStorage.setItem(KEYPAD_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+}
+
+/** Whether the keypad opens by itself: the store setting decides, `auto` means "touch devices". */
+export function keypadDefault(mode: KeypadMode): boolean {
+  if (mode === 'always') return true;
+  if (mode === 'off') return false;
+  return isCoarsePointer();
+}
+
 /** True on touch devices (tablets/phones), where the OS keyboard would cover the dialog. */
 export function isCoarsePointer(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;

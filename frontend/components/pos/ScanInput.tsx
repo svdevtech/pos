@@ -1,5 +1,6 @@
 'use client';
 
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import SearchIcon from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -8,6 +9,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { useTranslations } from 'next-intl';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react';
 import { GlassInput } from '@/components/glass';
+import { cameraSupported } from '@/lib/pos/barcodeCamera';
 import { looksLikeBarcode, parseQtyPrefix } from '@/lib/pos/cart';
 
 export interface ScanInputHandle {
@@ -20,6 +22,8 @@ interface Props {
   onScan: (code: string, qty: number) => Promise<void> | void;
   /** Called on Enter with free text (or the search icon). */
   onSearch: (query: string, qty: number) => void;
+  /** Opens the camera scanner (tablets/phones without a scanner gun). */
+  onCamera?: () => void;
   /** When true (a dialog is open) the field does not steal focus back. */
   suspended?: boolean;
   busy?: boolean;
@@ -31,12 +35,15 @@ interface Props {
  * `3*` prefix multiplies the quantity of the next scan.
  */
 const ScanInput = forwardRef<ScanInputHandle, Props>(function ScanInput(
-  { onScan, onSearch, suspended = false, busy = false, autoFocus = true },
+  { onScan, onSearch, onCamera, suspended = false, busy = false, autoFocus = true },
   ref,
 ) {
   const t = useTranslations('pos');
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState('');
+  // the camera button only appears where a camera can actually be opened (client-side check)
+  const [camera, setCamera] = useState(false);
+  useEffect(() => setCamera(Boolean(onCamera) && cameraSupported()), [onCamera]);
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -108,6 +115,11 @@ const ScanInput = forwardRef<ScanInputHandle, Props>(function ScanInput(
         ),
         endAdornment: (
           <InputAdornment position="end">
+            {camera && (
+              <IconButton size="small" aria-label={t('scanWithCamera')} onClick={onCamera} data-testid="scan-camera">
+                <PhotoCameraIcon />
+              </IconButton>
+            )}
             <IconButton
               size="small"
               aria-label={t('searchProducts')}

@@ -11,7 +11,17 @@ export default defineConfig({
     trace: 'on-first-retry',
     locale: 'th-TH',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // a fake camera so the barcode-scanner dialog can be exercised headlessly
+        permissions: ['camera'],
+        launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
+      },
+    },
+  ],
   webServer: {
     command: 'npm run dev -- -p 3010',
     url: 'http://localhost:3010/login',

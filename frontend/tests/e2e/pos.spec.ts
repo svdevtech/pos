@@ -354,3 +354,99 @@ test.describe('POS payment dialog on a tablet', () => {
     expect(body.payments).toEqual([{ method: 'cash', amount: 100 }]);
   });
 });
+
+/** The keypad is a store setting plus a per-device button, so both paths need to work. */
+test.describe('POS payment keypad preference', () => {
+  test('desktop hides the keypad until the button asks for it', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/pos');
+    const scan = page.getByTestId('scan-input');
+    await scan.fill(BARCODE);
+    await scan.press('Enter');
+    await page.keyboard.press('F9');
+
+    // pointer: fine -> no keypad, the field takes the hardware keyboard
+    await expect(page.getByTestId('keypad-7')).toBeHidden();
+    const amount = page.getByTestId('tender-amount-cash');
+    await expect(amount).toHaveAttribute('inputmode', 'decimal');
+
+    await page.getByTestId('keypad-toggle').click();
+    await expect(page.getByTestId('keypad-7')).toBeVisible();
+    await expect(amount).toHaveAttribute('inputmode', 'none');
+    expect(await page.evaluate(() => window.localStorage.getItem('pos.keypad'))).toBe('1');
+
+    await page.getByTestId('keypad-toggle').click();
+    await expect(page.getByTestId('keypad-7')).toBeHidden();
+    await expect(amount).toHaveAttribute('inputmode', 'decimal');
+    expect(await page.evaluate(() => window.localStorage.getItem('pos.keypad'))).toBe('0');
+  });
+
+  test('keypad_mode=off keeps the keypad closed on a tablet until the button is used', async ({ page }) => {
+    await mockApi(page);
+    await page.route('**/api/v1/store/settings', (route) =>
+      json(route, { require_shift: false, allow_price_edit: false, paper_width: 80, keypad_mode: 'off' }),
+    );
+    await page.goto('/pos');
+    const scan = page.getByTestId('scan-input');
+    await scan.fill(BARCODE);
+    await scan.press('Enter');
+    await page.keyboard.press('F9');
+
+    await expect(page.getByTestId('keypad-7')).toBeHidden();
+    await page.getByTestId('keypad-toggle').click();
+    await expect(page.getByTestId('keypad-7')).toBeVisible();
+  });
+});
+
+/**
+ * Camera scanning for tablets without a scanner gun. The decoder itself belongs to the browser /
+ * ZXing, so the test stubs BarcodeDetector and checks the plumbing: camera opens, a decoded code
+ * lands in the cart, repeats are ignored.
+ */
+test.describe('POS camera scanning', () => {
+  test('a decoded barcode goes straight into the cart', async ({ page, context }) => {
+    await context.grantPermissions(['camera']);
+    await page.addInitScript((code) => {
+      class FakeBarcodeDetector {
+        static getSupportedFormats() {
+          return Promise.resolve(['ean_13']);
+        }
+        detect() {
+          return Promise.resolve([{ rawValue: code }]);
+        }
+      }
+      (window as unknown as { BarcodeDetector: unknown }).BarcodeDetector = FakeBarcodeDetector;
+    }, BARCODE);
+
+    await mockApi(page);
+    await page.goto('/pos');
+
+    await page.getByTestId('scan-camera').click();
+    await expect(page.getByTestId('camera-scan-view')).toBeVisible();
+
+    // one cart line even though the stub decodes the same symbol on every frame
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('camera-scan-log')).toContainText('น้ำดื่ม 600ml');
+
+    await page.getByTestId('camera-scan-done').click();
+    await expect(page.getByTestId('camera-scan-view')).toBeHidden();
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+  });
+
+  test('falls back to the bundled decoder when the browser has no BarcodeDetector', async ({ page, context }) => {
+    await context.grantPermissions(['camera']);
+    await page.addInitScript(() => {
+      delete (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
+    });
+    await mockApi(page);
+    await page.goto('/pos');
+
+    await page.getByTestId('scan-camera').click();
+    await expect(page.getByTestId('camera-scan-view')).toBeVisible();
+    // ZXing loads lazily; the camera must come up without an error banner
+    await expect(page.getByTestId('camera-scan-error')).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; return v ? v.videoWidth : 0; }))
+      .toBeGreaterThan(0);
+  });
+});

@@ -31,6 +31,8 @@ import HeldBillsDialog from '@/components/pos/HeldBillsDialog';
 import MemberPicker, { MemberChip } from '@/components/pos/MemberPicker';
 import ProductSearchDialog from '@/components/pos/ProductSearchDialog';
 import ReceiptDialog, { readPrintReceiptOverride, writePrintReceipt } from '@/components/pos/ReceiptPrint';
+import CameraScanDialog, { type CameraScanResult } from '@/components/pos/CameraScanDialog';
+import { type KeypadMode } from '@/components/pos/NumericKeypad';
 import ScanInput, { type ScanInputHandle } from '@/components/pos/ScanInput';
 import ShiftOpenDialog, { readTerminal } from '@/components/pos/ShiftOpenDialog';
 import TenderDialog from '@/components/pos/TenderDialog';
@@ -46,12 +48,14 @@ import {
   cartItemCount,
   emptyCart,
   fromHeldCart,
+  looksLikeBarcode,
   toHeldCart,
   toQuoteInput,
   toSaleInput,
   type CartLine,
   type CartState,
 } from '@/lib/pos/cart';
+import { useWedgeScanner } from '@/lib/pos/useWedgeScanner';
 import { dec, type HeldBill, type Member, type ProductView, type Sale, type TenderInput } from '@/lib/pos/types';
 
 type DiscountMode = 'amount' | 'pct';
@@ -121,10 +125,20 @@ export default function PosPage() {
   const [cancelSale, setCancelSale] = useState<Sale | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const scanRef = useRef<ScanInputHandle>(null);
 
   const anyDialogOpen =
-    search.open || memberOpen || tenderOpen || Boolean(receipt) || heldOpen || holdOpen || shiftOpen || Boolean(cancelSale) || historyOpen;
+    search.open ||
+    memberOpen ||
+    tenderOpen ||
+    Boolean(receipt) ||
+    heldOpen ||
+    holdOpen ||
+    shiftOpen ||
+    Boolean(cancelSale) ||
+    historyOpen ||
+    cameraOpen;
 
   // ----- server state ------------------------------------------------------
   const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
@@ -135,6 +149,7 @@ export default function PosPage() {
   useEffect(() => setPrintOverride(readPrintReceiptOverride()), []);
   const printReceiptDefault = printOverride ?? (settings.data?.auto_print_receipt ?? true);
   const allowPriceEdit = Boolean(settings.data?.allow_price_edit);
+  const keypadMode: KeypadMode = ((settings.data?.keypad_mode as KeypadMode | undefined) ?? 'auto');
 
   useEffect(() => {
     if (shift.isSuccess && shift.data === null && !shiftDismissed) setShiftOpen(true);
@@ -216,22 +231,56 @@ export default function PosPage() {
   };
 
   // ----- scanning ----------------------------------------------------------
+  /** Looks a barcode up and drops it in the cart. Shared by the scan box, the camera and HID guns. */
+  const lookupAndAdd = useCallback(
+    async (code: string, qty: number): Promise<CameraScanResult & { notFound: boolean }> => {
+      try {
+        const p = await posApi.byBarcode(code);
+        const pack = dec(p.pack_qty);
+        addToCart(p, qty * (pack > 0 ? pack : 1));
+        return { ok: true, notFound: false, label: locale === 'en' && p.name_en ? p.name_en : p.name };
+      } catch (e) {
+        const notFound = isApiError(e) && e.status === 404;
+        return { ok: false, notFound, label: notFound ? t('barcodeNotFound', { code }) : errorMessage(e) };
+      }
+    },
+    [addToCart, errorMessage, locale, t],
+  );
+
   const onScan = async (code: string, qty: number) => {
     setScanBusy(true);
     try {
-      const p = await posApi.byBarcode(code);
-      const pack = dec(p.pack_qty);
-      addToCart(p, qty * (pack > 0 ? pack : 1));
-    } catch (e) {
-      if (isApiError(e) && e.status === 404) toast.error(t('barcodeNotFound', { code }));
-      else toast.error(errorMessage(e));
-      setSearch({ open: true, q: code, qty });
+      const res = await lookupAndAdd(code, qty);
+      if (!res.ok) {
+        toast.error(res.label);
+        // let the cashier find the item by name instead of retyping the code
+        setSearch({ open: true, q: code, qty });
+      }
     } finally {
       setScanBusy(false);
     }
   };
 
+  /** Camera dialog: report the outcome in the dialog itself, never behind it. */
+  const onCameraScan = useCallback(
+    async (code: string): Promise<CameraScanResult> => {
+      const { ok, label } = await lookupAndAdd(code, 1);
+      return { ok, label };
+    },
+    [lookupAndAdd],
+  );
+
   const onSearch = (q: string, qty: number) => setSearch({ open: true, q, qty });
+
+  // HID scanners (USB guns, PDA trigger scanners) also work when the focus left the scan box
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
+  useWedgeScanner(
+    (code) => {
+      if (looksLikeBarcode(code)) void onScanRef.current(code, 1);
+    },
+    { enabled: !anyDialogOpen },
+  );
 
   // ----- mutations ---------------------------------------------------------
   const createSale = useMutation({
@@ -349,6 +398,10 @@ export default function PosPage() {
         case 'F4':
           e.preventDefault();
           if (!anyDialogOpen) setHeldOpen(true);
+          break;
+        case 'F6':
+          e.preventDefault();
+          if (!anyDialogOpen) setCameraOpen(true);
           break;
         case 'F7':
           e.preventDefault();
@@ -486,7 +539,14 @@ export default function PosPage() {
       >
         {/* Right column (rendered first on mobile so the scan box is on top) */}
         <Stack spacing={1.5} sx={{ order: { xs: 0, md: 1 }, minHeight: 0, overflow: { md: 'auto' } }}>
-          <ScanInput ref={scanRef} onScan={onScan} onSearch={onSearch} suspended={anyDialogOpen} busy={scanBusy} />
+          <ScanInput
+            ref={scanRef}
+            onScan={onScan}
+            onSearch={onSearch}
+            onCamera={() => setCameraOpen(true)}
+            suspended={anyDialogOpen}
+            busy={scanBusy}
+          />
           <Box sx={{ display: { xs: 'none', md: 'block' } }}>
             <Stack spacing={1.5}>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -575,6 +635,15 @@ export default function PosPage() {
       </Box>
 
       {/* Dialogs */}
+      <CameraScanDialog
+        open={cameraOpen}
+        onClose={() => {
+          setCameraOpen(false);
+          scanRef.current?.focus();
+        }}
+        onDetect={onCameraScan}
+      />
+
       <ProductSearchDialog
         open={search.open}
         initialQuery={search.q}
@@ -594,6 +663,7 @@ export default function PosPage() {
         busy={createSale.isPending}
         error={createSale.error ? errorMessage(createSale.error) : null}
         onConfirm={(payments, print) => createSale.mutate({ payments, print })}
+        keypadMode={keypadMode}
         defaultPrintReceipt={printReceiptDefault}
         onPrintReceiptChange={(on) => {
           writePrintReceipt(on);
