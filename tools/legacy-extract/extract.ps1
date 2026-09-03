@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Extract every business table of the legacy MS Access POS database (pstorenusoft) to JSONL + manifest.json.
+  Extract every business table of the legacy MS Access POS database to JSONL + manifest.json.
   ดึงข้อมูลทุกตารางจากฐานข้อมูล MS Access เดิม ออกเป็นไฟล์ JSONL (UTF-8) พร้อม manifest สำหรับนำเข้าระบบใหม่
 
 .DESCRIPTION
@@ -9,13 +9,13 @@
   Output: <Out>\<table>.jsonl (one JSON object per row, autonumber order where present) and <Out>\manifest.json.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Password pstorenusoft -Out D:\workspace\pos\legacy-dump
+  powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Password <รหัสผ่านไฟล์ .mdb> -Out D:\workspace\pos\legacy-dump
   powershell -File tools\legacy-extract\extract.ps1 -Mdb ... -Out ... -Verify     # recount rows and compare with manifest
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)] [string] $Mdb,
-  [string] $Password = 'pstorenusoft',
+  [string] $Password = $env:LEGACY_MDB_PASSWORD,
   [Parameter(Mandatory = $true)] [string] $Out,
   [switch] $Verify
 )
@@ -116,7 +116,7 @@ if ($Verify) {
 }
 
 $manifest = [ordered]@{
-  format          = 'pstorenusoft-legacy-dump/1'
+  format          = 'pos-legacy-dump/1'
   extracted_at    = (Get-Date).ToString('o')
   source_path     = (Resolve-Path $Mdb).Path
   source_size     = (Get-Item $Mdb).Length

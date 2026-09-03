@@ -1,4 +1,4 @@
-// Command migrate-legacy imports a pstorenusoft (MS Access) dump into PostgreSQL for one store.
+// Command migrate-legacy imports a legacy MS Access POS dump into PostgreSQL for one store.
 //
 //	migrate-legacy -dir ../legacy-dump -store BBR -dry-run
 //	migrate-legacy -dir ../legacy-dump -store BBR

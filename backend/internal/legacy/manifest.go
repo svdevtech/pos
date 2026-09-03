@@ -1,4 +1,4 @@
-// Package legacy imports the pstorenusoft (MS Access) POS dump produced by tools/legacy-extract/extract.ps1
+// Package legacy imports the legacy MS Access POS dump produced by tools/legacy-extract/extract.ps1
 // into the new PostgreSQL schema for one store, idempotently, with a reconciliation report.
 package legacy
 
@@ -51,7 +51,7 @@ func LoadManifest(dir string) (*Manifest, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
-	if !strings.HasPrefix(m.Format, "pstorenusoft-legacy-dump/") {
+	if !strings.HasSuffix(m.Format, "-legacy-dump/1") {
 		return nil, fmt.Errorf("unexpected manifest format %q", m.Format)
 	}
 	m.dir = dir

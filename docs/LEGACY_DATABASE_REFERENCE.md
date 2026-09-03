@@ -1,9 +1,9 @@
-# เอกสารอ้างอิงฐานข้อมูลระบบเดิม (Legacy Database Reference) — `database.mdb` (pstorenusoft)
+# เอกสารอ้างอิงฐานข้อมูลระบบเดิม (Legacy Database Reference) — `database.mdb` (ระบบ POS เดิม)
 
 > เอกสารนี้เป็นเอกสารอ้างอิงถาวร (permanent reference) สำหรับฐานข้อมูล MS Access ของโปรแกรม POS เดิม
-> "pstorenusoft" ซึ่งใช้ที่ร้านค้าชุมชน(ประชารัฐ)บ้านบุญเรืองเหนือ อ.เชียงของ จ.เชียงราย
+> ระบบ POS เดิม ซึ่งใช้ที่ร้านค้าชุมชน(ประชารัฐ)บ้านบุญเรืองเหนือ อ.เชียงของ จ.เชียงราย
 > ทุกตัวเลขในเอกสารนี้ตรวจสอบจากการอ่านไฟล์จริงแบบ read-only (ODBC/DAO) เมื่อ 2026-09-02
-> และจาก dump ที่ `D:\workspace\pos\legacy-dump\` (manifest `pstorenusoft-legacy-dump/1`)
+> และจาก dump ที่ `D:\workspace\pos\legacy-dump\` (manifest `pos-legacy-dump/1`)
 > ใช้เอกสารนี้แทนการเปิดไฟล์ .mdb ซ้ำในอนาคต — ไม่ควรต้องเปิดไฟล์อีก เว้นแต่ต้องการข้อมูลที่ไม่มีในเอกสาร
 
 สารบัญ (Contents)
@@ -27,7 +27,7 @@
 
 | หัวข้อ | รายละเอียด |
 |---|---|
-| ชื่อโปรแกรม (product) | **pstorenusoft** — โปรแกรม POS สำหรับ Windows เขียนด้วย Visual Basic ใช้ MS Access เป็น backend |
+| ชื่อโปรแกรม (product) | **ระบบ POS เดิม** — โปรแกรม POS สำหรับ Windows เขียนด้วย Visual Basic ใช้ MS Access เป็น backend |
 | ผู้ใช้งาน (store) | ร้านค้าชุมชน(ประชารัฐ)บ้านบุญเรืองเหนือ — หมู่ที่ 1 ตำบลบุญเรือง อำเภอเชียงของ จังหวัดเชียงราย (โทร. 084-3716939) |
 | รูปแบบธุรกิจ | ร้านค้าสหกรณ์ชุมชน (community co-op store): ขายปลีก + สมาชิกถือหุ้น (share capital) + ขายเชื่อสมาชิก (ลูกหนี้) + ปันผลประจำปี (ปันหุ้น + เฉลี่ยคืนตามยอดซื้อ) |
 | business logic | **ทั้งหมดอยู่ในโปรแกรม VB** — ในไฟล์ .mdb ไม่มี saved queries, relationships, forms, macros หรือ modules เลย ความหมายของคอลัมน์ทั้งหมดในเอกสารนี้อนุมานจากข้อมูลจริง |
@@ -40,7 +40,7 @@
 | ขนาด | 171,773,952 bytes (≈ 171 MB) |
 | SHA-256 | `bb4cea2785f54d8a8cbc41e304cc6bf3e73d3cba121b2ab879010f8ab66ab8d1` |
 | รูปแบบ | Microsoft Access 2000–2003 (Jet 4) `.mdb` |
-| รหัสผ่านฐานข้อมูล (database password) | `pstorenusoft` |
+| รหัสผ่านฐานข้อมูล (database password) | (เก็บไว้นอก repo — สอบถามผู้ดูแลระบบ) |
 | Timezone ของข้อมูล | Asia/Bangkok (ค่า DATETIME เป็น wall-clock time ไม่มี timezone) |
 | ปฏิทิน | วันที่ในคอลัมน์ DATETIME เป็น ค.ศ. (Gregorian) แต่ **ข้อความ** วันที่ (`buy_cancel_time`, `payment_datetime`) และเลขที่เอกสารใช้ **พ.ศ. (Buddhist Era)** |
 | Dump | `D:\workspace\pos\legacy-dump\<table>.jsonl` + `manifest.json` (สร้างเมื่อ 2026-09-02T16:26:11+07:00) |
@@ -81,7 +81,7 @@
 ต้องมี driver 64-bit "Microsoft Access Driver (*.mdb, *.accdb)" (มากับ Office หรือ Access Database Engine Redistributable) และรัน PowerShell 64-bit
 
 ```powershell
-$cs = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=D:\workspace\pos\database.mdb;Pwd=pstorenusoft;ReadOnly=1;"
+$cs = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=D:\workspace\pos\database.mdb;Pwd=<รหัสผ่าน>;ReadOnly=1;"
 $conn = New-Object System.Data.Odbc.OdbcConnection($cs)
 $conn.Open()
 $cmd = $conn.CreateCommand()
@@ -101,7 +101,7 @@ ODBC ไม่คืนข้อมูล index ให้ ต้องใช้ 
 
 ```powershell
 $dbe = New-Object -ComObject DAO.DBEngine.120
-$db  = $dbe.OpenDatabase('D:\workspace\pos\database.mdb', $false, $true, ';PWD=pstorenusoft')   # exclusive=false, readonly=true
+$db  = $dbe.OpenDatabase('D:\workspace\pos\database.mdb', $false, $true, ';PWD=<รหัสผ่าน>')   # exclusive=false, readonly=true
 foreach ($t in $db.TableDefs) {
   if ($t.Name -like 'MSys*') { continue }
   foreach ($ix in $t.Indexes) {
@@ -133,14 +133,14 @@ $db.Close()
 ```powershell
 # ดึงข้อมูล (ใช้เวลาประมาณหลายนาที; buymain/buydetails เป็นส่วนใหญ่)
 powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 `
-  -Mdb D:\workspace\pos\database.mdb -Password pstorenusoft -Out D:\workspace\pos\legacy-dump
+  -Mdb D:\workspace\pos\database.mdb -Password <รหัสผ่านไฟล์ .mdb> -Out D:\workspace\pos\legacy-dump
 
 # ตรวจสอบซ้ำ: นับแถวใน DB เทียบกับ manifest และจำนวนบรรทัดในไฟล์ (exit 1 ถ้าไม่ตรง)
 powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 `
-  -Mdb D:\workspace\pos\database.mdb -Password pstorenusoft -Out D:\workspace\pos\legacy-dump -Verify
+  -Mdb D:\workspace\pos\database.mdb -Password <รหัสผ่านไฟล์ .mdb> -Out D:\workspace\pos\legacy-dump -Verify
 ```
 
-พารามิเตอร์: `-Mdb` (บังคับ), `-Out` (บังคับ), `-Password` (default `pstorenusoft`), `-Verify` (switch)
+พารามิเตอร์: `-Mdb` (บังคับ), `-Out` (บังคับ), `-Password` (default (เก็บไว้นอก repo — สอบถามผู้ดูแลระบบ)), `-Verify` (switch)
 
 พฤติกรรมสำคัญของ extractor:
 

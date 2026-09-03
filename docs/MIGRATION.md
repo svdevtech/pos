@@ -20,11 +20,12 @@ database.mdb ──(Windows: tools/legacy-extract/extract.ps1)──▶ legacy-d
 ## 1. ดึงข้อมูล (extract) — Windows
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Password pstorenusoft -Out D:\workspace\pos\legacy-dump
+powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Password <รหัสผ่านไฟล์ .mdb> -Out D:\workspace\pos\legacy-dump
 # ตรวจซ้ำว่าจำนวนแถวตรงกับ manifest
 powershell -ExecutionPolicy Bypass -File tools\legacy-extract\extract.ps1 -Mdb D:\workspace\pos\database.mdb -Out D:\workspace\pos\legacy-dump -Verify
 ```
 
+- รหัสผ่านของไฟล์ .mdb ระบุด้วย `-Password <รหัส>` หรือตั้ง environment variable `LEGACY_MDB_PASSWORD` ก่อนรัน (ไม่มีค่า default ในสคริปต์ และห้ามเขียนรหัสลงในเอกสาร/repo)
 - ใช้เวลาประมาณ 10–12 นาที (ตาราง `buydetails` 585,778 แถวเป็นตัวหน่วง) ได้ไฟล์รวม ~260 MB
 - ไม่ export `keyregister` (ลิขสิทธิ์โปรแกรมเดิม), `ข้อผิดพลาดในการวาง` (ขยะจากการ paste), `MSys*`
 - `manifest.json` เก็บ sha256 ของ .mdb, จำนวนแถว, ชื่อคอลัมน์/ชนิดข้อมูลทุกตาราง — ใช้ตรวจว่า dump ตรงกับไฟล์ต้นทาง

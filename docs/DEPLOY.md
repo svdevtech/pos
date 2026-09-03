@@ -1,78 +1,257 @@
-# Deploy — ทดสอบบน tee-dev (Ubuntu, Docker Compose ที่ `/data/pos`)
+# คู่มือติดตั้งและดูแลระบบ (Deployment & Operations Guide)
 
-เครื่องปลายทาง: `tee-dev` (Tailscale `100.122.174.19`, LAN `192.168.1.120`) — ดู [SSH-LOCAL-UBUNTU-SERVER.md](../SSH-LOCAL-UBUNTU-SERVER.md) สำหรับการเชื่อมต่อ
+คู่มือนี้สำหรับผู้ดูแลระบบ (IT/ผู้ดูแลเซิร์ฟเวอร์) ครอบคลุมการติดตั้งครั้งแรก การอัปเดต การสำรอง/กู้คืนข้อมูล การเปิดร้านใหม่ การเปิดใช้ LINE และ AI และการแก้ปัญหา
+คู่มือผู้ใช้งานหน้าจออยู่ที่ [USER_GUIDE.md](USER_GUIDE.md) · การย้ายข้อมูลจากระบบเดิมอยู่ที่ [MIGRATION.md](MIGRATION.md)
 
-พอร์ตที่ใช้ (ไม่ชนกับโปรเจกต์อื่นที่รันอยู่: 3000–3006, 8000–8089, 54321, 63791):
+---
 
-| บริการ | ภายใน container | เผยแพร่บนเซิร์ฟเวอร์ |
-|---|---|---|
-| web (Next.js) | 3010 | `0.0.0.0:3010` — เปิด ufw |
-| api (Go) | 8090 | `127.0.0.1:8090` (debug เท่านั้น; browser เรียกผ่าน Next rewrite `/api/*`) |
-| postgres 16 | 5432 | `127.0.0.1:54322` |
+## 1. ภาพรวมการติดตั้ง
 
-โครงบนเซิร์ฟเวอร์:
+ระบบรันด้วย **Docker Compose** 3 คอนเทนเนอร์บนเซิร์ฟเวอร์ Linux เครื่องเดียว (ทดสอบบน `tee-dev`, Ubuntu + Docker 29):
+
+| บริการ | หน้าที่ | พอร์ตใน container | พอร์ตที่เผยแพร่บนเซิร์ฟเวอร์ |
+|---|---|---|---|
+| `web` | Next.js (หน้าเว็บ + proxy `/api/*` ไป api) | 3010 | `0.0.0.0:3010` — ผู้ใช้เข้าพอร์ตนี้พอร์ตเดียว |
+| `api` | Go API (รัน migration ฐานข้อมูลอัตโนมัติตอนเริ่ม) | 8090 | `127.0.0.1:8090` (เฉพาะ debug บนเครื่อง) |
+| `postgres` | PostgreSQL 16 | 5432 | `127.0.0.1:54322` (เฉพาะ debug บนเครื่อง) |
+
+พอร์ต 3010/8090/54322 เลือกไว้ไม่ให้ชนกับโปรเจกต์อื่นบน tee-dev (3000–3006, 8000–8089, 54321, 63791) — ปรับได้ใน `/data/pos/.env` (`WEB_PORT`, `API_PORT`, `PG_PORT`)
+
+โครงสร้างบนเซิร์ฟเวอร์:
 
 ```
 /data/pos/
-├── src/        ← โค้ดที่ tar ขึ้นไป (deploy.sh)
-├── .env        ← ความลับ (นอก source tree; สร้างโดย install.sh)
-├── pgdata/     ← ข้อมูล PostgreSQL (NVMe)
-├── legacy/     ← dump จาก extract.ps1 (mount เข้า api ที่ /legacy)
-└── backups/    ← pg_dump รายวัน
+├── src/         ← โค้ดที่ส่งขึ้นไปด้วย deploy.sh (ถูกเขียนทับทุกครั้งที่ deploy)
+├── .env         ← ความลับและค่าตั้งค่า (อยู่นอก src จึงไม่ถูกเขียนทับ; chmod 600)
+├── pgdata/      ← ข้อมูล PostgreSQL (บน NVMe) — ห้ามลบ
+├── legacy/      ← dump จากระบบเดิม + import-report.json
+└── backups/     ← ไฟล์ pg_dump รายวัน (pos-YYYYMMDD-HHMMSS.dump.gz)
 ```
 
-## ครั้งแรก
+การเข้าเซิร์ฟเวอร์: ใช้ ssh alias `ubuntu-server` (Tailscale `100.122.174.19`) หรือ LAN `192.168.1.120` ตามคู่มือเชื่อมต่อ SSH ของเครื่อง (ไม่ได้อยู่ใน repo นี้) ผู้ใช้ `tee` ต้องอยู่ในกลุ่ม `docker`
+
+---
+
+## 2. ติดตั้งครั้งแรก (ทำจากเครื่อง dev ที่มี Git Bash)
+
+### 2.1 ส่งโค้ดและเตรียมเครื่อง
 
 ```bash
-# 1) ส่งโค้ด (ไม่ build) แล้วเตรียมเครื่อง
-bash deploy/tee-dev/deploy.sh --no-build
+cd D:/workspace/pos
+bash deploy/tee-dev/deploy.sh --no-build          # tar โค้ดขึ้น /data/pos/src (ยังไม่ build)
 scp -i ~/.ssh/spark_tunnel deploy/tee-dev/install.sh tee@100.122.174.19:/tmp/
 ssh ubuntu-server 'SUDO_PW="<รหัส sudo ของ tee>" bash /tmp/install.sh; rm -f /tmp/install.sh'
-#    install.sh: สร้างโฟลเดอร์, ตรวจ docker/compose (มีแล้ว), เปิด ufw 3010/tcp, สร้าง /data/pos/.env พร้อมความลับสุ่ม
-#    (จดรหัส PLATFORM_ADMIN_PASSWORD ที่พิมพ์ออกมา)
+```
 
-# 2) build + start
+`install.sh` (รันซ้ำได้) จะ: สร้างโฟลเดอร์ `/data/pos/*` · ตรวจ/ติดตั้ง Docker + Compose · เพิ่มผู้ใช้เข้ากลุ่ม docker · เปิด ufw พอร์ต 3010/tcp · สร้าง `/data/pos/.env` จาก `deploy/.env.example` พร้อมสุ่ม `POSTGRES_PASSWORD`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `PLATFORM_ADMIN_PASSWORD` แล้ว **พิมพ์รหัสผู้ดูแลระบบกลางออกมา — จดไว้**
+
+> ถ้า `.env` ถูกสร้างแล้วสคริปต์จะไม่แตะต้อง แก้ค่าเองได้ด้วย `nano /data/pos/.env`
+
+### 2.2 ตรวจและแก้ค่าใน `/data/pos/.env`
+
+| ตัวแปร | ความหมาย | ค่าที่แนะนำ |
+|---|---|---|
+| `APP_ENV` | `prod` บังคับให้มี JWT secret | `prod` |
+| `POSTGRES_PASSWORD` | รหัสฐานข้อมูล | สุ่ม (install.sh สร้างให้) |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | กุญแจเซ็น token | สุ่ม 32 ไบต์ (`openssl rand -hex 32`) — เปลี่ยนแล้วผู้ใช้ทุกคนต้อง login ใหม่ |
+| `WEB_PORT`, `API_PORT`, `PG_PORT` | พอร์ตที่เผยแพร่ | 3010 / 8090 / 54322 |
+| `CORS_ORIGINS` | origin ที่อนุญาต (คั่นด้วย `,`) | ทุก URL ที่ผู้ใช้เปิดเว็บ เช่น `http://192.168.1.120:3010,http://100.122.174.19:3010` |
+| `AI_ENABLED`, `TLLM_BASE_URL`, `TLLM_MODEL`, `TLLM_ADMIN_TOKEN` | ผู้ช่วย AI | ปิด (`false`) จนกว่า gateway จะพร้อม (ข้อ 7) |
+| `LINE_MOCK`, `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LIFF_ID`, `NEXT_PUBLIC_LIFF_ID`, `NEXT_PUBLIC_LINE_MOCK` | LINE LIFF | mock (`true`) จนกว่าจะมี channel (ข้อ 6) |
+| `PLATFORM_ADMIN_USER`, `PLATFORM_ADMIN_PASSWORD` | บัญชีผู้ดูแลระบบกลางที่ `seed` สร้าง | ผู้ใช้ `admin` |
+
+### 2.3 build และเริ่มระบบ
+
+```bash
 bash deploy/tee-dev/deploy.sh
+```
 
-# 3) seed ผู้ดูแลระบบ + ร้านแรก
-ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env run --rm --entrypoint /app/seed api -store BBR -store-name "ร้านค้าชุมชน(ประชารัฐ)บ้านบุญเรืองเหนือ" -owner owner -owner-password "Owner12345"'
+สคริปต์จะ tar โค้ด (ไม่รวม node_modules/.git/.env/ข้อมูล) ส่งไป `/data/pos/src`, สั่ง `docker compose up -d --build` แล้วเรียก `/health` ครั้งแรกใช้เวลา build ประมาณ 3–6 นาที (ดาวน์โหลด image + build Next.js)
 
-# 4) นำเข้าข้อมูลเดิม (ดู docs/MIGRATION.md)
+### 2.4 สร้างผู้ดูแลระบบและร้านแรก
+
+```bash
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env run --rm --entrypoint /app/seed api \
+  -store BBR -store-name "ชื่อร้าน" -owner owner -owner-password "รหัสเจ้าของร้าน"'
+```
+
+- `seed` รันซ้ำได้ (ถ้ามีอยู่แล้วจะแจ้ง `exists`)
+- **ต้องใส่ `--entrypoint /app/seed`** เสมอ เพราะ entrypoint ปกติของ image คือ `/app/api` (ถ้าลืม จะได้ API server ตัวใหม่รันค้างแทน — ลบด้วย `docker rm -f $(docker ps -q --filter name=pos-api-run-)`)
+- รหัสร้าน (`-store`) เป็นรหัสที่พนักงานพิมพ์ตอน login ใช้ตัวพิมพ์ใหญ่สั้นๆ
+
+### 2.5 นำเข้าข้อมูลจากระบบเดิม (ถ้ามี)
+
+ดูรายละเอียดใน [MIGRATION.md](MIGRATION.md) โดยย่อ:
+
+```bash
 tar -C D:/workspace/pos -czf - legacy-dump | ssh ubuntu-server 'tar -xzf - -C /data/pos/legacy --strip-components=1'
 ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env run --rm --entrypoint /app/migrate-legacy api -dir /legacy -store BBR -dry-run'
 ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env run --rm --entrypoint /app/migrate-legacy api -dir /legacy -store BBR -report /legacy/import-report.json'
 ```
 
-เปิดใช้งาน: `http://192.168.1.120:3010` (LAN) หรือ `http://100.122.174.19:3010` (Tailscale) — เข้าสู่ระบบด้วยรหัสร้าน `BBR`
+### 2.6 ทดสอบ
 
-## อัปเดตครั้งถัดไป
+- เปิด `http://192.168.1.120:3010` (LAN) หรือ `http://100.122.174.19:3010` (Tailscale) → login ด้วยรหัสร้าน + owner
+- ทดสอบ API ครบวงจรจากเครื่อง dev ผ่าน ssh tunnel:
 
 ```bash
+ssh -f -N -L 18090:127.0.0.1:8090 ubuntu-server
+bash tools/smoke/smoke.sh http://localhost:18090 BBR owner "รหัสเจ้าของร้าน"
+```
+
+(สคริปต์จะสร้างสินค้า/สมาชิก/บิลทดสอบชื่อขึ้นต้น `SMOKE`/`SM` ในร้านนั้น — ใช้กับร้านทดสอบเท่านั้น)
+
+---
+
+## 3. อัปเดตเวอร์ชันใหม่
+
+```bash
+cd D:/workspace/pos && git pull            # ถ้าโค้ดอยู่บน GitHub
 bash deploy/tee-dev/deploy.sh
 ```
 
-## คำสั่งดูแล
+- migration ฐานข้อมูลรันอัตโนมัติตอน `api` เริ่ม (`AUTO_MIGRATE=true`) และเป็นแบบเพิ่มเท่านั้น (ไม่ลบข้อมูล)
+- ระหว่าง build ระบบเดิมยังให้บริการ จะสะดุดเพียงตอนสลับคอนเทนเนอร์ (~5–10 วินาที) ควรทำนอกเวลาขาย
+- ตรวจหลังอัปเดต: `ssh ubuntu-server 'curl -s http://localhost:8090/health'` ต้องได้ `"status":"ok"` และ `version` ตรงกับที่ deploy
+
+**ย้อนกลับ (rollback)**: `git checkout <commit เดิม>` แล้ว deploy ซ้ำ; ถ้า migration ใหม่ทำให้ข้อมูลเสีย ให้กู้จาก backup (ข้อ 4) ก่อน deploy เวอร์ชันเดิม
+
+---
+
+## 4. สำรองและกู้คืนข้อมูล
+
+### สำรอง
 
 ```bash
-ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env ps'
-ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env logs -f --tail=100 api'
-ssh ubuntu-server 'bash /data/pos/src/deploy/tee-dev/backup.sh'     # สำรองฐานข้อมูล (ตั้ง cron 02:00 ได้)
-ssh ubuntu-server 'docker exec -it pos-postgres-1 psql -U pos -d pos' # เข้า SQL
+ssh ubuntu-server 'bash /data/pos/src/deploy/tee-dev/backup.sh'
 ```
 
-กู้คืนจาก backup: `gunzip -c pos-YYYYMMDD.dump.gz | docker compose ... exec -T postgres pg_restore -U pos -d pos --clean --no-owner`
+ได้ไฟล์ `/data/pos/backups/pos-YYYYMMDD-HHMMSS.dump.gz` (pg_dump แบบ custom, บีบอัด) เก็บย้อนหลัง 30 วัน (`KEEP_DAYS`)
 
-## URL สาธารณะ (จำเป็นเฉพาะทดสอบ LINE LIFF จริง)
+ตั้งเวลาอัตโนมัติทุกวัน 02:00 (บนเซิร์ฟเวอร์ ในฐานะผู้ใช้ `tee`):
 
-เครื่อง tee-dev ใช้ reverse tunnel ไป relay `123.253.61.101` แบบเดียวกับ `hermes-tunnel-todo.service` → ติดตั้ง `deploy/tee-dev/pos-tunnel.service` (ส่งพอร์ต 3010 ไป relay `127.0.0.1:9111`) **และต้องเพิ่ม nginx vhost `pos.tdev2022.com → 127.0.0.1:9111` บน relay** (ต้องมีสิทธิ์ root บน relay — ยังไม่ได้ทำ) จากนั้นใส่ `https://pos.tdev2022.com` ใน `CORS_ORIGINS` และตั้ง LIFF endpoint URL เป็น `https://pos.tdev2022.com/liff`
+```bash
+(crontab -l 2>/dev/null; echo "0 2 * * * /data/pos/src/deploy/tee-dev/backup.sh >> /data/pos/backups/backup.log 2>&1") | crontab -
+```
 
-## AI (T-RAG / NL→SQL)
+ควรคัดลอกไฟล์ backup ออกนอกเครื่องเป็นระยะ เช่น `scp ubuntu-server:/data/pos/backups/pos-*.dump.gz D:/backup/pos/`
 
-ปิดไว้ (`AI_ENABLED=false`) เพราะ `192.168.1.116:9001` ยังเข้าถึงจาก tee-dev ไม่ได้ (ตรวจ 2026-09-02: connection failed) — เมื่อเครือข่ายถึงกันแล้วต้องเพิ่ม `192.168.1.120` ใน `config.security.ip_whitelist` ของ gateway `:9001` บน Local Spark (config เข้ารหัส ดู SERVER_MANUAL §2) แล้วตั้ง `AI_ENABLED=true` ทดสอบด้วย `curl http://192.168.1.116:9001/health` จากเครื่อง tee-dev
+### กู้คืน
 
-## Checklist ก่อนใช้จริง (production hardening)
+```bash
+ssh ubuntu-server
+cd /data/pos/src/deploy
+docker compose --env-file /data/pos/.env stop api web
+gunzip -c /data/pos/backups/pos-YYYYMMDD-HHMMSS.dump.gz | docker compose --env-file /data/pos/.env exec -T postgres pg_restore -U pos -d pos --clean --if-exists --no-owner
+docker compose --env-file /data/pos/.env start api web
+```
 
-- เปลี่ยน `APP_ENV=prod` (บังคับให้มี JWT secret), ปิด `127.0.0.1:8090` ถ้าไม่ต้อง debug
-- ตั้ง cron backup และทดสอบ restore
-- เปิด HTTPS ผ่าน tunnel/relay ก่อนใช้จากอินเทอร์เน็ต (JWT ผ่าน HTTP ใน LAN/Tailscale เท่านั้น)
-- ตั้ง `require_shift=true` ในตั้งค่าร้านถ้าต้องการบังคับเปิดกะก่อนขาย
+ทดสอบการกู้คืนอย่างน้อยปีละครั้งบนฐานข้อมูลชื่ออื่น (`createdb` + `pg_restore -d pos_test`) เพื่อยืนยันว่าไฟล์ backup ใช้ได้
+
+---
+
+## 5. เปิดร้านใหม่ (multi-tenant)
+
+1. login เว็บด้วยผู้ดูแลระบบกลาง (`admin`, ไม่ต้องใส่รหัสร้าน — ติ๊ก "เข้าสู่ระบบในฐานะผู้ดูแลแพลตฟอร์ม")
+2. เมนู **ร้านค้า** → **เพิ่มร้าน**: ใส่รหัสร้าน (เช่น `SHOP2`), ชื่อ, ภาษาเริ่มต้น, ชื่อผู้ใช้/รหัสผ่านเจ้าของร้าน
+3. เจ้าของร้าน login ด้วยรหัสร้านนั้น → ตั้งค่าร้าน (ที่อยู่ หัว/ท้ายใบเสร็จ โลโก้) → เพิ่มพนักงาน → เพิ่มสินค้า/สมาชิก (หรือ import จากระบบเดิมของร้านนั้นด้วย `migrate-legacy -store SHOP2`)
+
+ข้อมูลทุกร้านแยกกันด้วย Row-Level Security ในฐานข้อมูล ผู้ใช้ของร้านหนึ่งมองไม่เห็นข้อมูลของอีกร้าน ผู้ดูแลระบบกลางเข้าดูร้านใดก็ได้ผ่านปุ่ม "เข้าร้าน"
+
+---
+
+## 6. เปิดใช้ LINE LIFF (สมาชิกดูบัตร/ยอดซื้อ/ปันผลผ่าน LINE)
+
+ต้องมี **URL สาธารณะแบบ HTTPS** ก่อน (LINE ไม่ยอมรับ http/LAN):
+
+1. **เปิดทางออกสาธารณะ** — tee-dev ใช้ reverse SSH tunnel ไป relay `123.253.61.101` แบบเดียวกับโปรเจกต์ `todo`: ติดตั้ง `deploy/tee-dev/pos-tunnel.service` (ส่งพอร์ต 3010 ไป relay `127.0.0.1:9111`)
+   ```bash
+   scp -i ~/.ssh/spark_tunnel deploy/tee-dev/pos-tunnel.service tee@100.122.174.19:/tmp/
+   ssh ubuntu-server 'echo "<รหัส sudo>" | sudo -S cp /tmp/pos-tunnel.service /etc/systemd/system/ && echo "<รหัส sudo>" | sudo -S systemctl enable --now pos-tunnel'
+   ```
+   จากนั้น **บน relay** (ต้องมีสิทธิ์ root ที่นั่น) เพิ่ม nginx vhost `pos.tdev2022.com → 127.0.0.1:9111` พร้อม certificate — ยังไม่ได้ทำในรอบนี้
+2. สร้าง **LINE Login channel** + **LIFF app** ใน LINE Developers Console: Endpoint URL = `https://pos.tdev2022.com/liff`, scope `profile openid`
+3. ใส่ค่าใน `/data/pos/.env`: `LINE_MOCK=false`, `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LIFF_ID`, `NEXT_PUBLIC_LIFF_ID`, `NEXT_PUBLIC_LINE_MOCK=false`, เพิ่ม `https://pos.tdev2022.com` ใน `CORS_ORIGINS` แล้ว deploy ใหม่ (ค่า `NEXT_PUBLIC_*` ถูกฝังตอน build)
+4. ทดสอบ: เปิด LIFF URL ใน LINE → ระบบจะขอผูกบัญชีด้วย "รหัสผูกบัญชี" ที่พนักงานสร้างจากหน้าสมาชิก หรือเบอร์โทรที่ตรงกับทะเบียน
+
+ระหว่างที่ยังเป็น mock: หน้า `/liff` รับ token รูปแบบ `mock:<lineUserId>:<ชื่อ>` เพื่อทดสอบ flow ได้โดยไม่ต้องมี LINE จริง
+
+---
+
+## 7. เปิดใช้ผู้ช่วย AI (ถาม-ตอบข้อมูลร้านด้วยภาษาไทย)
+
+ใช้ T-LLM gateway ที่ `http://192.168.1.116:9001` (Local Spark) ผ่าน `/v1/generate` — ปัจจุบัน tee-dev **ยังเชื่อมต่อไม่ได้** (ตรวจ 2026-09-02: connection failed)
+
+1. ทำให้เครือข่ายถึงกัน แล้วเพิ่ม IP ของ tee-dev (`192.168.1.120`) ใน `config.security.ip_whitelist` ของ gateway `:9001` (config เข้ารหัส ต้อง decrypt → แก้ → encrypt → restart service ตามคู่มือของเครื่อง Local Spark)
+2. ทดสอบจาก tee-dev: `curl -s http://192.168.1.116:9001/health` ต้องได้ 200 (403 = ยังไม่ whitelist)
+3. ตั้ง `AI_ENABLED=true` (และ `TLLM_ADMIN_TOKEN` ถ้ามี) ใน `.env` → `docker compose ... up -d api`
+4. ตรวจในเว็บ: เมนู **ผู้ช่วย AI** → สถานะ gateway ต้องเป็น ok
+
+ความปลอดภัย: AI สร้างได้เฉพาะ `SELECT` ตารางที่อนุญาต, รันใน transaction read-only ภายใต้ RLS ของร้าน, timeout 8 วินาที, สูงสุด 200 แถว, ทุกคำถามถูกบันทึกใน `ai_query_logs`
+
+---
+
+## 8. คำสั่งดูแลประจำวัน
+
+```bash
+# สถานะคอนเทนเนอร์
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env ps'
+# log ของ API (JSON บรรทัดละรายการ; level=ERROR คือปัญหา)
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env logs --tail=200 api'
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env logs -f web'
+# รีสตาร์ต
+ssh ubuntu-server 'cd /data/pos/src/deploy && docker compose --env-file /data/pos/.env restart api web'
+# เข้า SQL (อ่านอย่างเดียวถ้าไม่จำเป็น)
+ssh -t ubuntu-server 'docker exec -it pos-postgres-1 psql -U pos -d pos'
+# พื้นที่ดิสก์ / ขนาดฐานข้อมูล
+ssh ubuntu-server 'df -h /data; docker exec pos-postgres-1 psql -U pos -d pos -tAc "select pg_size_pretty(pg_database_size(current_database()))"'
+# ล้าง image เก่าหลัง deploy หลายครั้ง
+ssh ubuntu-server 'docker image prune -f'
+```
+
+การรีเซ็ตรหัสผ่านผู้ใช้ที่ลืม: เจ้าของร้านทำได้ที่ **ตั้งค่า → ผู้ใช้** (ตั้งรหัสใหม่ ผู้ใช้จะถูกบังคับเปลี่ยนตอน login ถัดไป); ถ้าเจ้าของร้านลืมเอง ให้ผู้ดูแลระบบกลางเข้าร้านแล้วแก้ที่หน้าเดียวกัน; ถ้าผู้ดูแลระบบกลางลืม ให้สร้างผู้ดูแลกลางคนใหม่ด้วย `seed -admin admin2 -admin-password "<รหัส>"` (seed ไม่เขียนทับรหัสของผู้ใช้ที่มีอยู่)
+
+---
+
+## 9. ความปลอดภัย (checklist ก่อนใช้จริง)
+
+- [ ] `APP_ENV=prod`, JWT secret สุ่ม, `POSTGRES_PASSWORD` สุ่ม, `.env` สิทธิ์ 600
+- [ ] เปลี่ยนรหัสผ่านทดสอบทั้งหมด (`owner`/ผู้ใช้ที่สร้างตอนทดสอบ) และให้ผู้ใช้ที่ย้ายมาจากระบบเดิมตั้งรหัสใหม่ (ระบบบังคับอยู่แล้ว)
+- [ ] เว็บถูกเข้าถึงได้เฉพาะ LAN/Tailscale (ufw เปิดเฉพาะ 22 และ 3010) — ถ้าจะเปิดสู่อินเทอร์เน็ตต้องผ่าน HTTPS (tunnel/relay หรือ reverse proxy) เท่านั้น เพราะ token วิ่งใน header
+- [ ] ตั้ง cron backup และทดสอบกู้คืนแล้ว
+- [ ] ปิด `127.0.0.1:8090`/`54322` ใน compose ถ้าไม่ต้อง debug (ลบบรรทัด `ports:` ของ api/postgres)
+- [ ] ตรวจ `audit_logs` ได้จากเมนู ตั้งค่า → บันทึกการใช้งาน (เจ้าของร้าน/ผู้จัดการ)
+
+---
+
+## 10. แก้ปัญหาที่พบบ่อย
+
+| อาการ | สาเหตุ / วิธีแก้ |
+|---|---|
+| เปิดเว็บไม่ได้จากเครื่องอื่น | ufw ไม่เปิดพอร์ต 3010 → `sudo ufw allow 3010/tcp`; หรือ `WEB_PORT` ใน `.env` ไม่ตรง |
+| หน้าเว็บขึ้นแต่ login แล้ว "เกิดข้อผิดพลาดภายในระบบ" | api ล่มหรือกำลัง restart → ดู `docker compose logs api`; ตรวจ `/health` |
+| login ได้แต่ทุกหน้าแจ้ง "เซสชันหมดอายุ" | เปลี่ยน `JWT_SECRET` หลังผู้ใช้ login ค้าง → ให้ login ใหม่ |
+| `docker compose run ... seed` ค้างไม่จบ | ลืม `--entrypoint /app/seed` (รัน API แทน) → กด Ctrl-C แล้ว `docker rm -f` คอนเทนเนอร์ `pos-api-run-*` |
+| `migrate-legacy` แจ้ง `read-only file system` ตอนเขียน report | โฟลเดอร์ `/legacy` mount แบบอ่านอย่างเดียวใน compose เวอร์ชันเก่า → อัปเดต compose (ตอนนี้เป็น rw แล้ว) หรือใช้ `-report /tmp/x.json` |
+| build ล้มเหลว `failed to resolve docker/dockerfile` / `TLS handshake timeout` | เซิร์ฟเวอร์ต่อ Docker Hub ไม่ได้ชั่วคราว → ลองใหม่; image พื้นฐาน (`golang`, `node`, `postgres`) ถูก cache ไว้แล้วหลัง build แรก |
+| ขายแล้วช้าหรือค้างระหว่างกำลัง import ข้อมูลเดิม | import ใช้ transaction ใหญ่ ล็อกแถวสินค้าแบบ KEY SHARE — ทำ import นอกเวลาขาย |
+| POS แจ้ง "ยังไม่ได้เปิดกะ" ทั้งที่ไม่ต้องการใช้กะ | ตั้งค่าร้าน → ใบเสร็จ/การขาย → ปิด `require_shift` |
+| สต็อกติดลบหลัง import | ค่าติดลบมาจากระบบเดิม → ทำใบตรวจนับสต็อก (คลังสินค้า → ตรวจนับ) แล้ว finalize |
+| พิมพ์ใบเสร็จไม่ออก | ใช้ print dialog ของเบราว์เซอร์ → ตั้งค่าเครื่องพิมพ์ความร้อน 58/80 มม. เป็นค่าเริ่มต้นและปิด margin; เลือกความกว้างกระดาษให้ตรงใน ตั้งค่า → ใบเสร็จ |
+| ต้องการรีเซ็ตทั้งระบบ (ทดสอบใหม่) | `docker compose down` แล้วลบ `/data/pos/pgdata/*` (ข้อมูลหายทั้งหมด) → `up -d` → seed → import ใหม่ |
+
+---
+
+## 11. โครงสร้าง repo ที่เกี่ยวกับ deploy
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `deploy/docker-compose.yml` | นิยาม 3 บริการ, volume, พอร์ต, ตัวแปรที่ส่งเข้า container |
+| `deploy/.env.example` | แม่แบบ `.env` (คัดลอกไป `/data/pos/.env`) |
+| `deploy/tee-dev/install.sh` | เตรียมเครื่อง (idempotent) |
+| `deploy/tee-dev/deploy.sh` | ส่งโค้ด + build + restart (`--no-build` = ส่งโค้ดอย่างเดียว) |
+| `deploy/tee-dev/backup.sh` | pg_dump รายวัน |
+| `deploy/tee-dev/pos-tunnel.service` | systemd unit ของ reverse tunnel สำหรับ URL สาธารณะ |
+| `backend/Dockerfile` | build api/seed/migrate-legacy (multi-stage, alpine, non-root) |
+| `frontend/Dockerfile` | build Next.js standalone (ต้องส่ง `BACKEND_INTERNAL_URL`, `NEXT_PUBLIC_*` เป็น build arg) |
+| `tools/smoke/smoke.sh` | ทดสอบ API ครบวงจร |

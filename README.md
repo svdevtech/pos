@@ -1,7 +1,7 @@
 # POS สหกรณ์ — Multi-tenant Web POS
 
 ระบบขายหน้าร้านแบบเว็บ (Go + PostgreSQL + Next.js 14) สำหรับร้านค้าชุมชน/สหกรณ์ ใช้ร่วมกันได้หลายร้านใน 1 ระบบ
-แทนที่โปรแกรม POS เดิมบน MS Access (pstorenusoft) พร้อมระบบย้ายข้อมูลเดิมและระบบปันผลรายปี
+แทนที่โปรแกรม POS เดิมบน MS Access พร้อมระบบย้ายข้อมูลเดิมและระบบปันผลรายปี
 
 **ภาษา:** ไทย/อังกฤษ สลับได้ทุกหน้า · **ผู้ใช้:** พนักงานร้าน (POS/หลังร้าน), ผู้ดูแลระบบกลาง, สมาชิก (LINE LIFF)
 
@@ -29,7 +29,9 @@ cd frontend && npm install && npm run dev      # http://localhost:3010 → login
 
 ## เอกสาร
 
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — คู่มือผู้ใช้งานฉบับละเอียด (แคชเชียร์ หลังร้าน ปันผล สมาชิก LINE)
+- [docs/DEPLOY.md](docs/DEPLOY.md) — คู่มือติดตั้งและดูแลระบบ (Docker Compose บน tee-dev, backup/restore, เปิดร้านใหม่, LINE, AI)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — สถาปัตยกรรมและจุดออกแบบสำคัญ
 - [docs/LEGACY_DATABASE_REFERENCE.md](docs/LEGACY_DATABASE_REFERENCE.md) — โครงสร้างฐานข้อมูลเดิมทุกตาราง/คอลัมน์ ความหมาย ปัญหาข้อมูล ตัวเลขกระทบยอด
 - [docs/MIGRATION.md](docs/MIGRATION.md) — ขั้นตอนดึงและนำเข้าข้อมูลเดิม
 - [docs/DIVIDEND_MATH.md](docs/DIVIDEND_MATH.md) — สูตรปันผลและตัวอย่างคำนวณ
-- [docs/DEPLOY.md](docs/DEPLOY.md) — ติดตั้งบนเซิร์ฟเวอร์ทดสอบ tee-dev (Docker Compose)

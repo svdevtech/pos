@@ -1,6 +1,6 @@
 # POS สหกรณ์ (multi-tenant web POS) — project guide for Claude Code
 
-Replacement for the legacy MS Access POS "pstorenusoft" of a Thai community co-op store. One deployment serves many stores
+Replacement for the legacy MS Access POS (ระบบเดิม) of a Thai community co-op store. One deployment serves many stores
 (store chosen at login). Bilingual UI (Thai default / English).
 
 ## Layout
