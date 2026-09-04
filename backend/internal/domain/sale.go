@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -222,12 +223,23 @@ type ExpenseType struct {
 // Money rounds to 2 decimal places (half away from zero, as the legacy VB app did).
 func Money(d decimal.Decimal) decimal.Decimal { return d.Round(2) }
 
-// PaymentSlip is a photograph of a transfer/QR slip kept as proof for one sale.
+// Slip targets: what a photographed slip is proof of.
+const (
+	SlipRefSale       = "sale"       // a bill at the till
+	SlipRefAR         = "ar_payment" // a member paying off credit
+	SlipRefUnassigned = "unassigned" // photographed, not matched to a record yet
+)
+
+// PaymentSlip is a photograph of a transfer/QR slip. It belongs to a bill, to a debt payment, or
+// to nothing yet — the cashier can shoot first and match it afterwards.
 type PaymentSlip struct {
 	ID             uuid.UUID       `json:"id"`
 	StoreID        uuid.UUID       `json:"-"`
-	SaleID         uuid.UUID       `json:"sale_id"`
+	SaleID         *uuid.UUID      `json:"sale_id,omitempty"`
 	SaleDocNo      string          `json:"sale_doc_no,omitempty"`
+	ARPaymentID    *uuid.UUID      `json:"ar_payment_id,omitempty"`
+	ARDocNo        string          `json:"ar_doc_no,omitempty"`
+	MemberName     string          `json:"member_name,omitempty"`
 	Method         string          `json:"method"`
 	Amount         decimal.Decimal `json:"amount"`
 	Mime           string          `json:"mime"`
@@ -239,4 +251,33 @@ type PaymentSlip struct {
 	VerifiedAt     *time.Time      `json:"verified_at,omitempty"`
 	VerifiedBy     *uuid.UUID      `json:"verified_by,omitempty"`
 	VerifiedByName string          `json:"verified_by_name,omitempty"`
+}
+
+// RefType says which record the slip is proof of.
+func (s PaymentSlip) RefType() string {
+	switch {
+	case s.SaleID != nil:
+		return SlipRefSale
+	case s.ARPaymentID != nil:
+		return SlipRefAR
+	}
+	return SlipRefUnassigned
+}
+
+// RefDocNo is the document number a person would read off the slip card.
+func (s PaymentSlip) RefDocNo() string {
+	if s.SaleID != nil {
+		return s.SaleDocNo
+	}
+	return s.ARDocNo
+}
+
+// MarshalJSON adds the derived reference fields the web UI groups and labels slips by.
+func (s PaymentSlip) MarshalJSON() ([]byte, error) {
+	type raw PaymentSlip // avoids recursing into this method
+	return json.Marshal(struct {
+		raw
+		RefType  string `json:"ref_type"`
+		RefDocNo string `json:"ref_doc_no,omitempty"`
+	}{raw(s), s.RefType(), s.RefDocNo()})
 }

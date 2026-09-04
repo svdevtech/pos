@@ -2,6 +2,7 @@
 
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PersonIcon from '@mui/icons-material/Person';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Skeleton from '@mui/material/Skeleton';
@@ -16,7 +17,8 @@ import QueryError from '@/components/QueryError';
 import StatTile from '@/components/StatTile';
 import { useToast } from '@/components/Toast';
 import ReceivePaymentDialog, { type PaymentTarget } from '@/components/ar/ReceivePaymentDialog';
-import { GlassButton, GlassCard, GlassTable, type GlassColumn } from '@/components/glass';
+import SaleSlips from '@/components/pos/SaleSlips';
+import { GlassButton, GlassCard, GlassDialog, GlassTable, type GlassColumn } from '@/components/glass';
 import { resolveLocale } from '@/i18n/config';
 import { useMemberBills, type ARBill, type ARPayment } from '@/lib/api/hooks/ar';
 import { useMember } from '@/lib/api/hooks/members';
@@ -27,6 +29,7 @@ const SELLER_ROLES: readonly Role[] = ['platform_admin', 'store_owner', 'manager
 
 export default function ARMemberPage() {
   const t = useTranslations('ar');
+  const tp = useTranslations('pos');
   const tc = useTranslations('common');
   const locale = resolveLocale(useLocale());
   const toast = useToast();
@@ -38,6 +41,7 @@ export default function ARMemberPage() {
   const member = useMember(memberId);
   const bills = useMemberBills(memberId);
   const [target, setTarget] = useState<PaymentTarget | null>(null);
+  const [slipsFor, setSlipsFor] = useState<ARPayment | null>(null);
 
   const m = member.data;
   const memberRef = m ? { id: m.id, member_code: m.member_code, name: m.name } : null;
@@ -81,6 +85,20 @@ export default function ARMemberPage() {
     { key: 'balance_after', label: t('balanceAfter'), width: 130, align: 'right', render: (p) => formatMoney(p.balance_after, locale) },
     { key: 'method', label: t('method'), width: 110, render: (p) => (t.has(`methods.${p.method}`) ? t(`methods.${p.method}`) : p.method) },
     { key: 'received_by_name', label: t('receivedBy'), width: 140 },
+    // transfer/QR receipts carry the customer's confirmation slip; cash ones never do
+    {
+      key: 'slip',
+      label: tp('slips'),
+      width: 110,
+      render: (p) =>
+        p.method === 'qr' || p.method === 'transfer' ? (
+          <GlassButton size="small" variant="text" startIcon={<PhotoCameraIcon />} onClick={() => setSlipsFor(p)}>
+            {tp('slips')}
+          </GlassButton>
+        ) : (
+          '-'
+        ),
+    },
     { key: 'note', label: tc('notes') },
   ];
 
@@ -125,6 +143,17 @@ export default function ARMemberPage() {
           </GlassCard>
         </>
       )}
+
+      {/* the confirmation slip of one debt-payment receipt */}
+      <GlassDialog
+        open={Boolean(slipsFor)}
+        onClose={() => setSlipsFor(null)}
+        maxWidth="sm"
+        title={`${tp('slips')} ${slipsFor?.doc_no ?? ''}`}
+        actions={<GlassButton onClick={() => setSlipsFor(null)}>{tc('close')}</GlassButton>}
+      >
+        {slipsFor && <SaleSlips target={{ type: 'ar', id: slipsFor.id }} />}
+      </GlassDialog>
 
       <ReceivePaymentDialog
         open={Boolean(target)}

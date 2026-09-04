@@ -220,7 +220,7 @@ export default function SaleDetailDialog({ saleId, open, onClose, onReprint, onC
           {(s.payments ?? []).some((p) => p.method === 'qr' || p.method === 'transfer') && (
             <>
               <Divider />
-              <SaleSlips saleId={s.id} allowAdd={s.status === 'completed'} />
+              <SaleSlips target={{ type: 'sale', id: s.id }} allowAdd={s.status === 'completed'} />
             </>
           )}
         </Stack>

@@ -24,17 +24,23 @@ import { formatDateTime } from '@/lib/format';
 import { posApi, posKeys } from '@/lib/pos/api';
 import type { PaymentSlip } from '@/lib/pos/types';
 
+/** Which record the slips belong to: a bill at the till, or a debt-payment receipt. */
+export interface SlipTarget {
+  type: 'sale' | 'ar';
+  id: string;
+}
+
 interface Props {
-  saleId: string;
-  /** Lets the cashier photograph a slip that was missed at the till. */
+  target: SlipTarget;
+  /** Lets the cashier photograph a slip that was missed at the time. */
   allowAdd?: boolean;
 }
 
 /**
- * The slips attached to one bill: who took each photo, whether a manager has checked it against
+ * The slips attached to one record: who took each photo, whether a manager has checked it against
  * the bank account, and the picture itself.
  */
-export default function SaleSlips({ saleId, allowAdd = true }: Props) {
+export default function SaleSlips({ target, allowAdd = true }: Props) {
   const t = useTranslations('pos');
   const locale = resolveLocale(useLocale());
   const qc = useQueryClient();
@@ -45,19 +51,22 @@ export default function SaleSlips({ saleId, allowAdd = true }: Props) {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [zoom, setZoom] = useState<PaymentSlip | null>(null);
 
+  const isSale = target.type === 'sale';
   const slips = useQuery({
-    queryKey: posKeys.saleSlips(saleId),
-    queryFn: () => posApi.saleSlips(saleId),
-    enabled: Boolean(saleId),
+    queryKey: isSale ? posKeys.saleSlips(target.id) : posKeys.arSlips(target.id),
+    queryFn: () => (isSale ? posApi.saleSlips(target.id) : posApi.arSlips(target.id)),
+    enabled: Boolean(target.id),
   });
 
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: posKeys.saleSlips(saleId) });
-    void qc.invalidateQueries({ queryKey: ['pos', 'slips', 'pending'] });
+    void qc.invalidateQueries({ queryKey: ['pos', 'slips'] });
   };
 
   const attach = useMutation({
-    mutationFn: (image: { dataUrl: string; mime: string }) => posApi.attachSlip(saleId, { image: image.dataUrl, mime: image.mime }),
+    mutationFn: (image: { dataUrl: string; mime: string }) =>
+      isSale
+        ? posApi.attachSlip(target.id, { image: image.dataUrl, mime: image.mime })
+        : posApi.attachARSlip(target.id, { image: image.dataUrl, mime: image.mime }),
     onSuccess: () => {
       toast.success(t('slipSaved'));
       refresh();

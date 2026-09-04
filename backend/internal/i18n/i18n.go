@@ -158,6 +158,7 @@ var th = map[string]string{
 	"SLIP_TOO_LARGE":    "รูปสลิปใหญ่เกิน {max_mb} MB กรุณาถ่ายใหม่หรือย่อรูปก่อน",
 	"SLIP_FORMAT":       "รองรับเฉพาะไฟล์รูปภาพ (JPEG/PNG/WebP) เท่านั้น",
 	"PROMPTPAY_NOT_SET": "ยังไม่ได้ตั้งพร้อมเพย์ของร้าน กรุณาไปที่ ตั้งค่า → ใบเสร็จและการชำระเงิน",
+	"SLIP_UNASSIGNED":   "สลิปนี้ยังไม่ได้จับคู่กับรายการ กรุณาเลือกบิลหรือใบรับชำระก่อนยืนยัน",
 
 	"MEMBER_INACTIVE": "สมาชิกนี้ถูกระงับหรือพ้นสภาพ กรุณาติดต่อร้าน",
 	"LINE_UPSTREAM":   "ไม่สามารถตรวจสอบบัญชี LINE ได้ กรุณาลองใหม่",
@@ -236,6 +237,7 @@ var en = map[string]string{
 	"SLIP_TOO_LARGE":    "The slip photo is larger than {max_mb} MB; take it again or shrink it",
 	"SLIP_FORMAT":       "Only image files are accepted (JPEG/PNG/WebP)",
 	"PROMPTPAY_NOT_SET": "PromptPay is not configured for this store yet (Settings → Receipt & payment)",
+	"SLIP_UNASSIGNED":   "Match this slip to a bill or a debt receipt before confirming it",
 
 	"MEMBER_INACTIVE": "This member is suspended or inactive; please contact the store",
 	"LINE_UPSTREAM":   "Could not verify the LINE account, please retry",

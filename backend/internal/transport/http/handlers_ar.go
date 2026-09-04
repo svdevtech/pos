@@ -23,6 +23,9 @@ type ARService interface {
 
 func (s *Server) mountAR(r chi.Router) {
 	r.Route("/ar", func(r chi.Router) {
+		// slip photographs of a debt payment live with the sales module, mounted here so the
+		// receivables screen can reach them under its own path
+		s.mountARPaymentSlips(r)
 		r.With(requireRole(rolesAll...)).Get("/accounts", func(w http.ResponseWriter, r *http.Request) {
 			page, size := paging(r)
 			items, total, err := s.AR.Accounts(r.Context(), storeID(r), queryStr(r, "q"), size, (page-1)*size)

@@ -331,11 +331,19 @@ export interface PaymentQR {
   store_name: string;
 }
 
-/** A photograph of the customer's transfer confirmation, kept against the bill. */
+/** What a slip photograph is proof of. `unassigned` = photographed, not matched to a record yet. */
+export type SlipRefType = 'sale' | 'ar_payment' | 'unassigned';
+
+/** A photograph of the customer's transfer confirmation, kept against a bill or a debt receipt. */
 export interface PaymentSlip {
   id: string;
-  sale_id: string;
-  sale_doc_no: string;
+  ref_type: SlipRefType;
+  ref_doc_no?: string;
+  sale_id?: string | null;
+  sale_doc_no?: string;
+  ar_payment_id?: string | null;
+  ar_doc_no?: string;
+  member_name?: string;
   method: string;
   amount: Money;
   mime: string;
@@ -347,4 +355,16 @@ export interface PaymentSlip {
   verified_at?: string | null;
   verified_by?: string | null;
   verified_by_name?: string;
+}
+
+/** A record a loose slip could belong to, offered when matching one up. */
+export interface SlipCandidate {
+  ref_type: 'sale' | 'ar_payment';
+  ref_id: string;
+  doc_no: string;
+  amount: Money;
+  at: string;
+  member_name?: string;
+  method: string;
+  has_slip: boolean;
 }

@@ -8,6 +8,7 @@ import type {
   Member,
   PaymentQR,
   PaymentSlip,
+  SlipCandidate,
   ProductView,
   QuoteResponse,
   ReceiptData,
@@ -32,7 +33,10 @@ export const posKeys = {
   summary: (from: string, to: string) => ['pos', 'summary', from, to] as const,
   paymentQR: (amount: number) => ['pos', 'payment-qr', amount] as const,
   saleSlips: (saleId: string) => ['pos', 'slips', 'sale', saleId] as const,
+  arSlips: (paymentId: string) => ['pos', 'slips', 'ar', paymentId] as const,
+  slipList: (scope: string, page: number) => ['pos', 'slips', 'list', scope, page] as const,
   pendingSlips: (page: number) => ['pos', 'slips', 'pending', page] as const,
+  slipCandidates: (amount: number, from: string) => ['pos', 'slips', 'candidates', amount, from] as const,
   dashboard: ['dashboard'] as const,
 };
 
@@ -75,6 +79,39 @@ export const posApi = {
       note: body.note,
     }),
   saleSlips: (saleId: string) => api.get<PaymentSlip[]>(`/sales/${saleId}/slips`),
+
+  // debt payments: the slip belongs to the receipt, which may settle several bills at once
+  attachARSlip: (paymentId: string, body: { image: string; mime?: string; amount?: number; note?: string; method?: string }) =>
+    api.post<PaymentSlip>(`/ar/payments/${paymentId}/slips`, {
+      image: body.image,
+      mime: body.mime,
+      method: body.method ?? 'transfer',
+      amount: body.amount !== undefined ? String(body.amount) : undefined,
+      note: body.note,
+    }),
+  arSlips: (paymentId: string) => api.get<PaymentSlip[]>(`/ar/payments/${paymentId}/slips`),
+
+  // a photograph taken before anyone knows which record it belongs to
+  uploadLooseSlip: (body: { image: string; mime?: string; amount?: number; note?: string }) =>
+    api.post<PaymentSlip>('/slips', {
+      image: body.image,
+      mime: body.mime,
+      amount: body.amount !== undefined ? String(body.amount) : undefined,
+      note: body.note,
+    }),
+  assignSlip: (id: string, target: { sale_id?: string | null; ar_payment_id?: string | null }) =>
+    api.post<PaymentSlip>(`/slips/${id}/assign`, target),
+  slipCandidates: (params: { amount?: number; from?: string; to?: string; limit?: number }) =>
+    api.get<SlipCandidate[]>(
+      `/slips/candidates${qs({
+        amount: params.amount && params.amount > 0 ? params.amount.toFixed(2) : undefined,
+        from: params.from,
+        to: params.to,
+        limit: params.limit,
+      })}`,
+    ),
+  slips: (scope: 'pending' | 'unassigned' | 'all', page: number, pageSize = 20) =>
+    api.get<Page<PaymentSlip>>(`/slips${qs({ scope, page, page_size: pageSize })}`),
   pendingSlips: (page: number, pageSize = 20) => api.get<Page<PaymentSlip>>(`/slips/pending${qs({ page, page_size: pageSize })}`),
   verifySlip: (id: string, verified: boolean) => api.post<PaymentSlip>(`/slips/${id}/verify`, { verified }),
   deleteSlip: (id: string) => api.delete<void>(`/slips/${id}`, undefined, { responseType: 'void' }),

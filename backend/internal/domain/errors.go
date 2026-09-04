@@ -137,6 +137,7 @@ var (
 	ErrSlipTooLarge   = NewError("SLIP_TOO_LARGE", http.StatusRequestEntityTooLarge)
 	ErrSlipFormat     = NewError("SLIP_FORMAT", http.StatusBadRequest)
 	ErrPromptPayUnset = NewError("PROMPTPAY_NOT_SET", http.StatusBadRequest)
+	ErrSlipUnassigned = NewError("SLIP_UNASSIGNED", http.StatusBadRequest)
 
 	ErrImportManifest = NewError("IMPORT_MANIFEST_INVALID", http.StatusBadRequest)
 
