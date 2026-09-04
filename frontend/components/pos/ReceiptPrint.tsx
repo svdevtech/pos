@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import { resolveLocale, type Locale } from '@/i18n/config';
 import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
+import { printHtml } from '@/lib/print/printHtml';
 import { posApi, posKeys } from '@/lib/pos/api';
 import { dec, type PaymentMethod, type ReceiptData } from '@/lib/pos/types';
 
@@ -220,36 +221,7 @@ export function receiptCss(width: 58 | 80): string {
 `;
 }
 
-/** Prints an HTML fragment through a hidden iframe (does not disturb the app's own print styles). */
-export function printHtml(body: string, css: string): void {
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  if (!doc) return;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>receipt</title><style>${css}</style></head><body>${body}</body></html>`);
-  doc.close();
-  const win = iframe.contentWindow;
-  const cleanup = () => window.setTimeout(() => iframe.remove(), 1000);
-  if (!win) return;
-  win.onafterprint = cleanup;
-  window.setTimeout(() => {
-    try {
-      win.focus();
-      win.print();
-    } finally {
-      // Fallback removal for browsers that never fire afterprint.
-      window.setTimeout(cleanup, 60_000);
-    }
-  }, 150);
-}
+export { printHtml };
 
 export function printReceipt(data: ReceiptData, labels: ReceiptLabels, locale: Locale, opts: { copy?: boolean } = {}): void {
   const width = paperWidthMm(data.settings);

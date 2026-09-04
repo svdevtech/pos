@@ -29,6 +29,7 @@ interface Values {
   require_shift: boolean;
   allow_negative_stock: boolean;
   keypad_mode: 'auto' | 'always' | 'off';
+  drawer_kick: 'print' | 'off';
   drawer_port: string;
   display_port: string;
   rounding: string;
@@ -49,6 +50,7 @@ function fromSettings(s: StoreSettings): Values {
     require_shift: s.require_shift ?? true,
     allow_negative_stock: s.allow_negative_stock ?? false,
     keypad_mode: s.keypad_mode === 'always' || s.keypad_mode === 'off' ? s.keypad_mode : 'auto',
+    drawer_kick: s.drawer_kick === 'off' ? 'off' : 'print',
     drawer_port: s.drawer_port ?? '',
     display_port: s.display_port ?? '',
     rounding: s.rounding === undefined || s.rounding === null ? '0' : String(s.rounding),
@@ -68,6 +70,7 @@ function toSettings(current: StoreSettings, v: Values): StoreSettings {
     require_shift: v.require_shift,
     allow_negative_stock: v.allow_negative_stock,
     keypad_mode: v.keypad_mode,
+    drawer_kick: v.drawer_kick,
     drawer_port: v.drawer_port.trim(),
     display_port: v.display_port.trim(),
     rounding: Number(v.rounding),
@@ -193,6 +196,19 @@ function ReceiptSettingsContent() {
                       <MenuItem value="off">{t('keypadOff')}</MenuItem>
                     </GlassInput>
                   </Stack>
+                </GlassCard>
+                <GlassCard title={t('cashDrawer')} subtitle={t('cashDrawerHint')}>
+                  <GlassInput
+                    select
+                    label={t('drawerKick')}
+                    value={values.drawer_kick}
+                    onChange={(e) => set('drawer_kick', e.target.value as Values['drawer_kick'])}
+                    helperText={t('drawerKickHint')}
+                    inputProps={{ 'data-testid': 'drawer-kick' }}
+                  >
+                    <MenuItem value="print">{t('drawerKickPrint')}</MenuItem>
+                    <MenuItem value="off">{t('drawerKickOff')}</MenuItem>
+                  </GlassInput>
                 </GlassCard>
                 <GlassCard title={t('promptPay')} subtitle={t('promptPayHint')}>
                   <Stack spacing={2}>

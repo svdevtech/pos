@@ -1,6 +1,7 @@
 'use client';
 
 import DownloadIcon from '@mui/icons-material/Download';
+import PrintIcon from '@mui/icons-material/Print';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
@@ -14,7 +15,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import DateRangeFilter, { monthRange, type DateRange } from '@/components/DateRangeFilter';
 import MemberAutocomplete from '@/components/MemberAutocomplete';
 import PageHeader from '@/components/PageHeader';
@@ -53,6 +54,7 @@ import {
 import { MUTATING_ROLES } from '@/lib/auth/session';
 import { today } from '@/lib/dates';
 import { formatDate, formatDateTime, formatMoney, formatNumber, formatQty } from '@/lib/format';
+import { printReport } from '@/lib/print/reportPrint';
 
 // ---------------------------------------------------------------------------
 // Generic table helpers
@@ -60,6 +62,17 @@ import { formatDate, formatDateTime, formatMoney, formatNumber, formatQty } from
 
 type Fmt = 'money' | 'qty' | 'int' | 'date' | 'datetime' | 'pct' | 'text';
 type Row = Record<string, unknown>;
+
+/**
+ * What a print-out needs in its header, filled in once by the page rather than by every report.
+ */
+interface ReportMeta {
+  storeName: string;
+  title: string;
+  subtitle: string;
+  printedBy: string;
+}
+const ReportMetaContext = createContext<ReportMeta>({ storeName: '', title: '', subtitle: '', printedBy: '' });
 
 interface Col {
   key: string;
@@ -91,16 +104,58 @@ function fmtValue(value: unknown, fmt: Fmt | undefined, locale: Locale): ReactNo
 
 const NUMERIC: Fmt[] = ['money', 'qty', 'int', 'pct'];
 
+/**
+ * The same value as plain text. `render` may return an element (a chip, a link), which cannot go
+ * on paper, so printing falls back to the raw field for those columns.
+ */
+function cellText(row: Row, col: Col, locale: Locale): string {
+  if (col.render) {
+    const custom = col.render(row);
+    if (typeof custom === 'string' || typeof custom === 'number') return String(custom);
+  }
+  const v = fmtValue(row[col.key], col.fmt, locale);
+  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  const raw = row[col.key];
+  return raw === null || raw === undefined ? '' : String(raw);
+}
+
 function ReportTable({ cols, rows, total, loading, locale, empty, keyOf }: { cols: Col[]; rows: Row[]; total?: Row | null; loading: boolean; locale: Locale; empty: string; keyOf?: (r: Row, i: number) => string }) {
+  const t = useTranslations('reports');
+  const meta = useContext(ReportMetaContext);
   const columns: GlassColumn<Row>[] = cols.map((c) => ({
     key: c.key,
     label: c.label,
     width: c.width,
     align: c.fmt && NUMERIC.includes(c.fmt) ? 'right' : 'left',
-    render: (r) => (c.render ? c.render(r) : r.__total ? <strong>{fmtValue(r[c.key], c.fmt, locale)}</strong> : fmtValue(r[c.key], c.fmt, locale)),
+    // the server marks its totals row with the literal "total" in the first column
+    render: (r) =>
+      c.render ? c.render(r) : r.__total ? <strong>{r[c.key] === 'total' ? t('cols.total') : fmtValue(r[c.key], c.fmt, locale)}</strong> : fmtValue(r[c.key], c.fmt, locale),
   }));
   const all = total && rows.length > 0 ? [...rows, { ...total, __total: true }] : rows;
-  return <GlassTable columns={columns} rows={all} rowKey={(r, i) => (r.__total ? '__total' : keyOf ? keyOf(r, i) : String(i))} loading={loading} emptyText={empty} maxHeight="70vh" />;
+
+  // The grid keeps only the visible rows in the DOM, so paper comes from the data, not the screen.
+  const print = () =>
+    printReport({
+      storeName: meta.storeName,
+      title: meta.title,
+      subtitle: meta.subtitle,
+      head: cols.map((c) => c.label),
+      aligns: cols.map((c) => (c.fmt && NUMERIC.includes(c.fmt) ? 'right' : 'left')),
+      rows: rows.map((r) => cols.map((c) => cellText(r, c, locale))),
+      total: total ? cols.map((c, i) => ((i === 0 && !total[c.key]) || total[c.key] === 'total' ? t('cols.total') : cellText(total, c, locale))) : null,
+      footNote: meta.printedBy,
+    });
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" justifyContent="flex-end">
+        <GlassButton variant="text" size="small" startIcon={<PrintIcon />} onClick={print} disabled={loading || rows.length === 0} data-testid="report-print">
+          {t('printReport')}
+        </GlassButton>
+      </Stack>
+      <GlassTable columns={columns} rows={all} rowKey={(r, i) => (r.__total ? '__total' : keyOf ? keyOf(r, i) : String(i))} loading={loading} emptyText={empty} maxHeight="70vh" />
+    </Stack>
+  );
 }
 
 function ExportButton({ name, params }: { name: string; params: ReportParams }) {
@@ -794,6 +849,16 @@ function ReportsContent() {
   const tab: TabKey = requested && TABS.some((x) => x.key === requested) ? requested : 'daily-sales';
   const [range, setRange] = useState<DateRange>(monthRange());
   const def = useMemo(() => TABS.find((x) => x.key === tab)!, [tab]);
+  const { session, store } = useSession();
+  const meta: ReportMeta = useMemo(
+    () => ({
+      storeName: store?.name ?? '',
+      title: t(def.label),
+      subtitle: def.ranged ? `${formatDate(range.from, locale)} - ${formatDate(range.to, locale)}` : '',
+      printedBy: t('printedAt', { at: formatDateTime(new Date().toISOString(), locale, true), by: session?.user?.display_name ?? '' }),
+    }),
+    [store?.name, t, def, range, locale, session?.user?.display_name],
+  );
 
   const body = (() => {
     switch (tab) {
@@ -841,7 +906,7 @@ function ReportsContent() {
         ))}
       </Tabs>
       {def.ranged && <DateRangeFilter value={range} onChange={setRange} />}
-      {body}
+      <ReportMetaContext.Provider value={meta}>{body}</ReportMetaContext.Provider>
     </Stack>
   );
 }

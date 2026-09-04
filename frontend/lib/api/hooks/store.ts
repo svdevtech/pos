@@ -14,6 +14,8 @@ export interface StoreSettings {
   allow_negative_stock?: boolean;
   /** POS payment dialog keypad: auto (touch devices), always, off. */
   keypad_mode?: 'auto' | 'always' | 'off' | string;
+  /** "open the drawer" prints a short slip (the printer pops the drawer), or only records it. */
+  drawer_kick?: 'print' | 'off' | string;
   drawer_port?: string;
   display_port?: string;
   rounding?: number | string;

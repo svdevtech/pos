@@ -431,7 +431,17 @@
     "slipRefAR": "Debt payment",
     "slipRefUnassigned": "Not matched",
     "slipSearchDays": "Period",
-    "slipDays": "Last {days} days"
+    "slipDays": "Last {days} days",
+    "printShiftSlip": "Print shift slip",
+    "shiftSlipTitle": "Shift summary",
+    "shiftSlipInterim": "Shift still open",
+    "shiftSlipPrintedAt": "Printed {at}",
+    "varianceExact": "exact",
+    "billsCount": "Bills",
+    "byMethod": "By payment method",
+    "openingFloat": "Opening float",
+    "cashIn": "Paid in",
+    "cashOut": "Paid out"
   },
   "receipt": {
     "title": "Receipt",
@@ -1107,7 +1117,9 @@
       "expensesTotal": "Total expenses",
       "month": "Month",
       "year": "Year"
-    }
+    },
+    "printReport": "Print",
+    "printedAt": "Printed {at} by {by}"
   },
   "dividends": {
     "title": "Dividends",
@@ -1473,7 +1485,13 @@
     "promptPayIdHint": "A 10-digit mobile number, a 13-digit citizen or tax id, or a 15-digit e-wallet id",
     "promptPayIdInvalid": "That is not a valid PromptPay id",
     "promptPayName": "Payee name (English)",
-    "promptPayNameHint": "Shown in the customer's banking app; English only, up to 25 characters"
+    "promptPayNameHint": "Shown in the customer's banking app; English only, up to 25 characters",
+    "cashDrawer": "Cash drawer",
+    "cashDrawerHint": "A drawer wired to the receipt printer opens whenever something is printed",
+    "drawerKick": "When the open-drawer button is pressed",
+    "drawerKickHint": "Print a slip = prints one short slip so the printer pops the drawer (needs the drawer cabled to the printer and the driver set to open it on print)",
+    "drawerKickPrint": "Print a slip to open the drawer",
+    "drawerKickOff": "Only record it, print nothing"
   },
   "admin": {
     "title": "Platform admin",

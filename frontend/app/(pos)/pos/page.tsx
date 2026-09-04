@@ -56,6 +56,8 @@ import {
   type CartLine,
   type CartState,
 } from '@/lib/pos/cart';
+import { paperWidthMm } from '@/components/pos/ReceiptPrint';
+import { drawerKickMode, kickDrawer } from '@/lib/print/drawerKick';
 import type { CapturedPhoto } from '@/lib/pos/photoCapture';
 import { useWedgeScanner } from '@/lib/pos/useWedgeScanner';
 import { dec, type HeldBill, type Member, type ProductView, type Sale, type TenderInput } from '@/lib/pos/types';
@@ -103,7 +105,7 @@ export default function PosPage() {
   const toast = useToast();
   const errorMessage = useApiErrorMessage();
   const qc = useQueryClient();
-  const { hasRole } = useSession();
+  const { hasRole, session } = useSession();
   const canCancel = hasRole(...MUTATING_ROLES);
   const canManage = canCancel; // manager/owner: cancelling bills and reaching the settings screens
 
@@ -145,6 +147,7 @@ export default function PosPage() {
 
   // ----- server state ------------------------------------------------------
   const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
+  const storeInfo = useQuery({ queryKey: posKeys.store, queryFn: posApi.store, staleTime: 5 * 60_000 });
   const shift = useQuery({ queryKey: posKeys.shift, queryFn: posApi.currentShift, staleTime: 60_000 });
   const requireShift = Boolean(settings.data?.require_shift);
   // printing default: the cashier's own choice on this device wins, otherwise the store setting
@@ -331,7 +334,19 @@ export default function PosPage() {
 
   const openDrawer = useMutation({
     mutationFn: () => posApi.drawer({ reason: 'no_sale' }),
-    onSuccess: () => toast.info(t('drawerOpened')),
+    onSuccess: () => {
+      // the drawer is wired to the printer, so a short slip is what actually pops it open
+      kickDrawer(
+        drawerKickMode(settings.data),
+        'no_sale',
+        { title: t('openDrawer'), cashier: t('cashier') },
+        storeInfo.data ?? null,
+        session?.user?.display_name ?? '',
+        locale,
+        paperWidthMm(settings.data ?? null),
+      );
+      toast.info(t('drawerOpened'));
+    },
     onError: (e) => toast.error(errorMessage(e)),
   });
 

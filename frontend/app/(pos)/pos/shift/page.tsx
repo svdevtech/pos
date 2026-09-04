@@ -2,6 +2,7 @@
 
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LockIcon from '@mui/icons-material/Lock';
+import PrintIcon from '@mui/icons-material/Print';
 import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Alert from '@mui/material/Alert';
@@ -18,6 +19,9 @@ import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
 import { GlassButton, GlassCard, GlassDialog, GlassInput, GlassTable, type GlassColumn } from '@/components/glass';
+import { paperWidthMm } from '@/components/pos/ReceiptPrint';
+import { drawerKickMode, kickDrawer } from '@/lib/print/drawerKick';
+import { printShiftSlip } from '@/lib/print/shiftSlip';
 import ShiftOpenDialog from '@/components/pos/ShiftOpenDialog';
 import { resolveLocale } from '@/i18n/config';
 import { useApiErrorMessage } from '@/lib/api/errors';
@@ -50,6 +54,67 @@ function VarianceText({ value }: { value: number }) {
         {value === 0 ? t('varianceOk') : value > 0 ? t('varianceOver') : t('varianceShort')}
       </Typography>
     </Typography>
+  );
+}
+
+/**
+ * Prints the shift slip on the receipt printer.
+ *
+ * Always fetches the shift fresh: taken mid-shift this is the "X" reading the cashier checks the
+ * drawer against, and after closing it is the "Z" slip that goes with the cash.
+ */
+function ShiftSlipButton({ shiftId, variant = 'outlined' }: { shiftId: string; variant?: 'outlined' | 'text' }) {
+  const t = useTranslations('pos');
+  const locale = resolveLocale(useLocale());
+  const toast = useToast();
+  const errorMessage = useApiErrorMessage();
+  const store = useQuery({ queryKey: posKeys.store, queryFn: posApi.store, staleTime: 5 * 60_000 });
+  const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
+
+  const print = useMutation({
+    mutationFn: () => posApi.shiftReport(shiftId),
+    onSuccess: (report) =>
+      printShiftSlip(
+        report.shift,
+        report.summary,
+        store.data ?? null,
+        {
+          title: t('shiftSlipTitle'),
+          terminal: t('terminal'),
+          cashier: t('cashier'),
+          openedAt: t('openedAt'),
+          closedAt: t('closedAt'),
+          openingFloat: t('openingFloat'),
+          cashSales: t('cashSales'),
+          cashIn: t('cashIn'),
+          cashOut: t('cashOut'),
+          expectedCash: t('expectedCash'),
+          countedCash: t('countedCash'),
+          variance: t('variance'),
+          over: t('varianceOver'),
+          short: t('varianceShort'),
+          exact: t('varianceExact'),
+          bills: t('billsCount'),
+          gross: t('gross'),
+          discount: t('discount'),
+          net: t('net'),
+          cancelled: t('cancelledBills'),
+          byMethod: t('byMethod'),
+          note: t('note'),
+          printedAt: t('shiftSlipPrintedAt', { at: formatDateTime(new Date().toISOString(), locale, true) }),
+          methods: Object.fromEntries(['cash', 'credit', 'transfer', 'card', 'qr', 'other'].map((m) => [m, t(`methods.${m}`)])),
+          interim: t('shiftSlipInterim'),
+        },
+        locale,
+        paperWidthMm(settings.data ?? null),
+      ),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  return (
+    <GlassButton variant={variant} startIcon={<PrintIcon />} loading={print.isPending} onClick={() => print.mutate()} data-testid="print-shift-slip">
+      {t('printShiftSlip')}
+    </GlassButton>
   );
 }
 
@@ -153,6 +218,8 @@ export default function ShiftPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const shift = useQuery({ queryKey: posKeys.shift, queryFn: posApi.currentShift, staleTime: 15_000, refetchInterval: 60_000 });
+  const store = useQuery({ queryKey: posKeys.store, queryFn: posApi.store, staleTime: 5 * 60_000 });
+  const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
   const shifts = useQuery({ queryKey: posKeys.shifts(page), queryFn: () => posApi.listShifts(page, 20), placeholderData: (prev) => prev });
   const detail = useQuery({ queryKey: posKeys.shiftDetail(detailId ?? ''), queryFn: () => posApi.shiftReport(detailId as string), enabled: Boolean(detailId) });
 
@@ -187,6 +254,18 @@ export default function ShiftPage() {
   const drawer = useMutation({
     mutationFn: () => posApi.drawer({ reason: drawerOp as DrawerReason, amount: Number(drawerAmount) || 0, note: drawerNote.trim() }),
     onSuccess: () => {
+      // money in or out means the drawer has to open: print the slip that opens it
+      kickDrawer(
+        drawerKickMode(settings.data),
+        (drawerOp ?? 'no_sale') as DrawerReason,
+        { title: drawerOp === 'paid_in' ? t('paidIn') : t('paidOut'), cashier: t('cashier'), amount: t('amount'), note: t('note') },
+        store.data ?? null,
+        current?.cashier_name ?? '',
+        locale,
+        paperWidthMm(settings.data ?? null),
+        Number(drawerAmount) || 0,
+        drawerNote.trim(),
+      );
       toast.success(drawerOp === 'paid_in' ? t('paidInDone') : t('paidOutDone'));
       setDrawerOp(null);
       setDrawerAmount('');
@@ -245,13 +324,24 @@ export default function ShiftPage() {
           <Box sx={{ mt: 1 }}>
             <ShiftSummary report={closed} />
           </Box>
+          <Box sx={{ mt: 1.5 }}>
+            <ShiftSlipButton shiftId={closed.shift.id} />
+          </Box>
         </Alert>
       )}
 
       {current ? (
         <Grid container spacing={2.5}>
           <Grid item xs={12} md={7}>
-            <GlassCard title={t('currentShift')} action={<Chip color="success" size="small" label={t('shiftOpen')} />}>
+            <GlassCard
+              title={t('currentShift')}
+              action={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <ShiftSlipButton shiftId={current.id} variant="text" />
+                  <Chip color="success" size="small" label={t('shiftOpen')} />
+                </Stack>
+              }
+            >
               <Grid container spacing={2}>
                 <Grid item xs={6} sm={4}>
                   <Stat label={t('openedAt')} value={formatDateTime(current.opened_at, locale)} />
@@ -384,7 +474,18 @@ export default function ShiftPage() {
         </Stack>
       </GlassDialog>
 
-      <GlassDialog open={Boolean(detailId)} onClose={() => setDetailId(null)} title={t('shiftDetail')} maxWidth="md" actions={<GlassButton onClick={() => setDetailId(null)}>{t('close')}</GlassButton>}>
+      <GlassDialog
+        open={Boolean(detailId)}
+        onClose={() => setDetailId(null)}
+        title={t('shiftDetail')}
+        maxWidth="md"
+        actions={
+          <>
+            {detailId && <ShiftSlipButton shiftId={detailId} />}
+            <GlassButton onClick={() => setDetailId(null)}>{t('close')}</GlassButton>
+          </>
+        }
+      >
         {detail.isPending && <Typography color="text.secondary">{t('loading')}</Typography>}
         {detail.isError && <Alert severity="error">{errorMessage(detail.error)}</Alert>}
         {detail.data && <ShiftSummary report={detail.data} />}

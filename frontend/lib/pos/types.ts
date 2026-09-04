@@ -233,6 +233,8 @@ export interface StoreSettings {
   show_tax?: boolean;
   vat_type?: string;
   default_terminal?: string;
+  /** How "open the drawer" behaves: print a slip that pops it (default), or only record it. */
+  drawer_kick?: 'print' | 'off' | string;
   [key: string]: unknown;
 }
 
