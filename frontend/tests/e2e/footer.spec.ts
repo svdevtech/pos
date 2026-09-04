@@ -82,4 +82,16 @@ test.describe('signed in', () => {
     await expect(inMenu).toBeVisible();
     await expect(inMenu).toBeInViewport();
   });
+
+  // a long page on a tablet, where the menu is hidden: the line lives at the end of the page and
+  // must be reachable by scrolling (the login and POS ones are always on screen — checked above)
+  test('a long page keeps the line at the end where scrolling reaches it', async ({ page }) => {
+    await page.setViewportSize({ width: 810, height: 700 });
+    await mockApi(page);
+    await page.goto('/dashboard');
+    const footer = page.getByRole('contentinfo');
+    await expect(footer).toContainText(COPYRIGHT);
+    await footer.scrollIntoViewIfNeeded();
+    await expect(footer).toBeInViewport();
+  });
 });

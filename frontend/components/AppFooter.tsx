@@ -33,6 +33,7 @@ export default function AppFooter({ variant = 'inline', pinBottom = true }: Prop
         ...(variant === 'bar'
           ? { borderTop: (th) => `1px solid ${th.glass.border}`, flexShrink: 0 }
           : { mt: pinBottom ? 'auto' : 1.5 }),
+
       }}
     >
       <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.85, fontSize: variant === 'bar' ? 11 : 12 }}>
