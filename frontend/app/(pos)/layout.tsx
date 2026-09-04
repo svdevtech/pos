@@ -29,7 +29,17 @@ function PosShell({ children }: { children: ReactNode }) {
   const storeName = store ? (locale === 'en' && store.name_en ? store.name_en : store.name) : t('appName');
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        height: '100vh',
+        // the cashier screen is sized to the window: on a tablet browser 100vh runs under the
+        // browser bars, which would hide the bottom strip
+        '@supports (height: 100dvh)': { height: '100dvh' },
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       <AppBar position="static">
         <Toolbar variant="dense" sx={{ gap: 1.5, minHeight: 56 }}>
           <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 700 }}>

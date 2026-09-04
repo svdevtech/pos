@@ -237,6 +237,8 @@ export default function LoginPage() {
     <Box
       sx={{
         minHeight: '100vh',
+        // iOS reports a taller 100vh than it actually shows; dvh tracks the visible area
+        '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -247,7 +249,7 @@ export default function LoginPage() {
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>
-      <AppFooter />
+      <AppFooter pinBottom={false} />
     </Box>
   );
 }

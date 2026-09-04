@@ -33,6 +33,24 @@ test('the copyright shows on the login page before anyone signs in', async ({ pa
   await expect(page.getByRole('contentinfo')).toContainText(COPYRIGHT);
 });
 
+// a tall tablet in portrait is where a bottom-pinned footer used to fall off the screen
+test('the login copyright is on screen on a tall tablet without scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 1366 });
+  await mockApi(page);
+  await page.goto('/login');
+  const footer = page.getByRole('contentinfo');
+  await expect(footer).toBeInViewport();
+  const gap = await page.evaluate(() => {
+    const card = document.querySelector('form')?.closest('div');
+    const foot = document.querySelector('footer');
+    if (!card || !foot) return -1;
+    return foot.getBoundingClientRect().top - card.getBoundingClientRect().bottom;
+  });
+  // it sits just under the sign-in card, not stranded at the bottom of the window
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(200);
+});
+
 test.describe('signed in', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((value) => window.localStorage.setItem('pos.session', JSON.stringify(value)), session);

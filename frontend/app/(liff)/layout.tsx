@@ -14,6 +14,7 @@ export default function LiffLayout({ children }: { children: ReactNode }) {
       <Box
         sx={{
           minHeight: '100vh',
+          '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
           background: BACKGROUND_LIGHT,
           color: 'text.primary',
           display: 'flex',

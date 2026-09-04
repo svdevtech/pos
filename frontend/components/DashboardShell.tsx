@@ -221,7 +221,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', '@supports (min-height: 100dvh)': { minHeight: '100dvh' } }}>
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
       <AppBar position="fixed" sx={{ zIndex: (th) => th.zIndex.drawer + 1 }}>
         <Toolbar sx={{ gap: 1 }}>
