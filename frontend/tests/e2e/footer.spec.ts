@@ -74,4 +74,12 @@ test.describe('signed in', () => {
     const footer = page.getByRole('contentinfo');
     await expect(footer).toBeInViewport();
   });
+
+  test('the menu carries the line too, so a long page shows it without scrolling', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/dashboard');
+    const inMenu = page.getByRole('navigation').getByText(COPYRIGHT);
+    await expect(inMenu).toBeVisible();
+    await expect(inMenu).toBeInViewport();
+  });
 });

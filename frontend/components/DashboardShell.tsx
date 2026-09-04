@@ -217,6 +217,12 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           <ListItemText primary={tn('logout')} />
         </ListItemButton>
       </List>
+      {/* also in the menu, so the line is on screen without scrolling a long page */}
+      <Box sx={{ px: 1, pb: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', opacity: 0.7, fontSize: 11 }}>
+          {tc('copyright', { year: new Date().getFullYear() })}
+        </Typography>
+      </Box>
     </Box>
   );
 
