@@ -23,8 +23,8 @@ const HOME_PASS = process.env.E2E_PASS ?? 'Owner12345';
 
 const NEW_STORE = {
   code: process.env.NEW_STORE_CODE ?? 'KAEN',
-  name: 'ร้านค้าสหกรณ์ออมทรัพย์บ้านแก่น',
-  name_en: 'Ban Kaen Savings Co-op Store',
+  name: 'ร้านค้าชุมชนบ้านแก่น',
+  name_en: 'Ban Kaen Community Store',
   owner_username: process.env.NEW_STORE_OWNER ?? 'kaen-owner',
   owner_password: process.env.NEW_STORE_PASS ?? 'Kaen@2569pos',
   owner_name: 'เจ้าของร้านบ้านแก่น',

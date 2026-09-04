@@ -40,6 +40,7 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
+import AppFooter from '@/components/AppFooter';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { Role } from '@/lib/auth/session';
@@ -220,7 +221,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
       <AppBar position="fixed" sx={{ zIndex: (th) => th.zIndex.drawer + 1 }}>
         <Toolbar sx={{ gap: 1 }}>
           <Tooltip title={desktopOpen ? tn('hideMenu') : tn('openMenu')}>
@@ -338,14 +340,18 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
         sx={{
           flexGrow: 1,
           minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
           p: { xs: 2, md: 3 },
           width: { xs: '100%', md: desktopOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : '100%' },
           transition: 'width 180ms ease',
         }}
       >
         <Toolbar />
-        {children}
+        <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
       </Box>
+      </Box>
+      <AppFooter />
     </Box>
   );
 }

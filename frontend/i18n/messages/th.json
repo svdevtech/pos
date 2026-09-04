@@ -60,7 +60,8 @@
     "select": "เลือก",
     "none": "ไม่มี",
     "store": "ร้านค้า",
-    "version": "เวอร์ชัน"
+    "version": "เวอร์ชัน",
+    "copyright": "Copyright © {year} by T-RAG AI Team"
   },
   "auth": {
     "title": "เข้าสู่ระบบ",

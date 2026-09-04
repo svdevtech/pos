@@ -20,6 +20,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useSession } from '@/components/Providers';
+import AppFooter from '@/components/AppFooter';
 import { GlassButton, GlassCard, GlassInput } from '@/components/glass';
 import { api, isApiError } from '@/lib/api/client';
 import { useApiErrorMessage } from '@/lib/api/errors';
@@ -237,6 +238,7 @@ export default function LoginPage() {
       sx={{
         minHeight: '100vh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         p: 2,
@@ -245,6 +247,7 @@ export default function LoginPage() {
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>
+      <AppFooter />
     </Box>
   );
 }

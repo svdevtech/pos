@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import AppFooter from '@/components/AppFooter';
 import Clock from '@/components/Clock';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useSession } from '@/components/Providers';
@@ -66,6 +67,7 @@ function PosShell({ children }: { children: ReactNode }) {
       <Box component="main" sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: { xs: 1.5, md: 2 } }}>
         {children}
       </Box>
+      <AppFooter variant="bar" />
     </Box>
   );
 }

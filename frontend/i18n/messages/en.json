@@ -60,7 +60,8 @@
     "select": "Select",
     "none": "None",
     "store": "Store",
-    "version": "Version"
+    "version": "Version",
+    "copyright": "Copyright © {year} by T-RAG AI Team"
   },
   "auth": {
     "title": "Sign in",
