@@ -28,7 +28,7 @@
 | transport | `internal/transport/http` | chi routes, JWT/role middleware, DTO, error → ข้อความ 2 ภาษา (`internal/i18n`) |
 | app | `internal/app` | composition root (`wire_<module>.go`) |
 
-โมดูล: auth/store/admin · products · inventory (stock ledger, receipts, adjustments, stock takes) · members + share ledger + LIFF · sales (POS, shifts, held bills, returns) · AR · expenses · promotions · reports · dividends · ai (NL→SQL) · legacy importer
+โมดูล: auth/store/admin · products · inventory (stock ledger, receipts, adjustments, stock takes) · members + share ledger + LIFF · sales (POS, shifts, held bills, returns, QR พร้อมเพย์ + รูปสลิป) · AR · expenses · promotions · reports · dividends · ai (NL→SQL) · legacy importer
 
 ## จุดออกแบบสำคัญ
 

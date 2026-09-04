@@ -78,16 +78,22 @@ export interface StartOptions {
   onError?: (err: ScanError) => void;
 }
 
-/** Opens the camera into `video` and decodes continuously until `stop()`. */
-export async function startCameraScan(video: HTMLVideoElement, opts: StartOptions): Promise<ScannerControls> {
+/**
+ * Opens the back camera into `video` and plays it. Shared by the barcode scanner and the slip
+ * photograph dialog, which need exactly the same permission handling, iOS quirks and torch probing.
+ */
+export async function openCameraInto(
+  video: HTMLVideoElement,
+  deviceId?: string,
+): Promise<{ stream: MediaStream; setTorch: ((on: boolean) => Promise<void>) | null; stopStream: () => void }> {
   if (!cameraAllowedHere()) throw new ScanError('insecure');
   if (!cameraSupported()) throw new ScanError('notfound');
 
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: opts.deviceId
-        ? { deviceId: { exact: opts.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
         : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
     });
@@ -118,6 +124,12 @@ export async function startCameraScan(video: HTMLVideoElement, opts: StartOption
     // cleanup must not blank the element the second run just attached
     if (video.srcObject === stream) video.srcObject = null;
   };
+  return { stream, setTorch, stopStream };
+}
+
+/** Opens the camera into `video` and decodes continuously until `stop()`. */
+export async function startCameraScan(video: HTMLVideoElement, opts: StartOptions): Promise<ScannerControls> {
+  const { stream, setTorch, stopStream } = await openCameraInto(video, opts.deviceId);
 
   const Detector = nativeDetector();
   if (Detector) {

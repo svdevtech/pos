@@ -221,3 +221,22 @@ type ExpenseType struct {
 
 // Money rounds to 2 decimal places (half away from zero, as the legacy VB app did).
 func Money(d decimal.Decimal) decimal.Decimal { return d.Round(2) }
+
+// PaymentSlip is a photograph of a transfer/QR slip kept as proof for one sale.
+type PaymentSlip struct {
+	ID             uuid.UUID       `json:"id"`
+	StoreID        uuid.UUID       `json:"-"`
+	SaleID         uuid.UUID       `json:"sale_id"`
+	SaleDocNo      string          `json:"sale_doc_no,omitempty"`
+	Method         string          `json:"method"`
+	Amount         decimal.Decimal `json:"amount"`
+	Mime           string          `json:"mime"`
+	SizeBytes      int             `json:"size_bytes"`
+	Note           string          `json:"note,omitempty"`
+	CapturedAt     time.Time       `json:"captured_at"`
+	CapturedBy     *uuid.UUID      `json:"captured_by,omitempty"`
+	CapturedByName string          `json:"captured_by_name,omitempty"`
+	VerifiedAt     *time.Time      `json:"verified_at,omitempty"`
+	VerifiedBy     *uuid.UUID      `json:"verified_by,omitempty"`
+	VerifiedByName string          `json:"verified_by_name,omitempty"`
+}

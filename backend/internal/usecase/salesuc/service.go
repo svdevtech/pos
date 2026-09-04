@@ -27,6 +27,7 @@ type Service struct {
 	held   postgres.HeldRepo
 	promos postgres.PromoRepo
 	stores postgres.StoreRepo
+	slips  postgres.SlipRepo
 	audit  postgres.AuditRepo
 	stock  StockLedger
 }

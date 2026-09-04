@@ -6,6 +6,8 @@ import type {
   DrawerReason,
   HeldBill,
   Member,
+  PaymentQR,
+  PaymentSlip,
   ProductView,
   QuoteResponse,
   ReceiptData,
@@ -28,6 +30,9 @@ export const posKeys = {
   sale: (id: string) => ['pos', 'sale', id] as const,
   receipt: (id: string) => ['pos', 'receipt', id] as const,
   summary: (from: string, to: string) => ['pos', 'summary', from, to] as const,
+  paymentQR: (amount: number) => ['pos', 'payment-qr', amount] as const,
+  saleSlips: (saleId: string) => ['pos', 'slips', 'sale', saleId] as const,
+  pendingSlips: (page: number) => ['pos', 'slips', 'pending', page] as const,
   dashboard: ['dashboard'] as const,
 };
 
@@ -58,6 +63,22 @@ export const posApi = {
   shiftReport: (id: string) => api.get<ShiftReport>(`/shifts/${id}`),
   drawer: (body: { reason: DrawerReason; amount?: number; note?: string }) =>
     api.post<void>('/drawer', { reason: body.reason, amount: body.amount ?? 0, note: body.note ?? '' }, { responseType: 'void' }),
+
+  paymentQR: (amount: number) => api.get<PaymentQR>(`/payment-qr${qs({ amount: amount > 0 ? amount.toFixed(2) : undefined })}`),
+  // the image travels as a data URL: the same shape the camera and the file picker both produce
+  attachSlip: (saleId: string, body: { image: string; mime?: string; method?: string; amount?: number; note?: string }) =>
+    api.post<PaymentSlip>(`/sales/${saleId}/slips`, {
+      image: body.image,
+      mime: body.mime,
+      method: body.method ?? 'qr',
+      amount: body.amount !== undefined ? String(body.amount) : undefined,
+      note: body.note,
+    }),
+  saleSlips: (saleId: string) => api.get<PaymentSlip[]>(`/sales/${saleId}/slips`),
+  pendingSlips: (page: number, pageSize = 20) => api.get<Page<PaymentSlip>>(`/slips/pending${qs({ page, page_size: pageSize })}`),
+  verifySlip: (id: string, verified: boolean) => api.post<PaymentSlip>(`/slips/${id}/verify`, { verified }),
+  deleteSlip: (id: string) => api.delete<void>(`/slips/${id}`, undefined, { responseType: 'void' }),
+  slipImage: (id: string) => api.get<Blob>(`/slips/${id}/image`, { responseType: 'blob' }),
 
   store: () => api.get<StoreInfo>('/store'),
   settings: () => api.get<StoreSettings>('/store/settings').then((s) => s ?? {}),

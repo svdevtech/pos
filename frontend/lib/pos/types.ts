@@ -320,3 +320,31 @@ export function shiftExpectedCash(shift: Shift): number {
   if (shift.expected_cash !== null && shift.expected_cash !== undefined) return dec(shift.expected_cash);
   return money(dec(shift.opening_float) + dec(shift.cash_sales) + dec(shift.cash_in) - dec(shift.cash_out));
 }
+
+/** The PromptPay code the till shows while the customer pays with a banking app. */
+export interface PaymentQR {
+  payload: string;
+  amount: Money;
+  kind: 'phone' | 'national_id' | 'ewallet';
+  masked_id: string;
+  merchant_name: string;
+  store_name: string;
+}
+
+/** A photograph of the customer's transfer confirmation, kept against the bill. */
+export interface PaymentSlip {
+  id: string;
+  sale_id: string;
+  sale_doc_no: string;
+  method: string;
+  amount: Money;
+  mime: string;
+  size_bytes: number;
+  note?: string;
+  captured_at: string;
+  captured_by?: string | null;
+  captured_by_name?: string;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  verified_by_name?: string;
+}

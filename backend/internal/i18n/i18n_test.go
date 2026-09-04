@@ -1,6 +1,23 @@
 package i18n
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/svdev/pos/internal/domain"
+)
+
+// Every declared error code must have a message in both languages, or the user sees a bare code
+// like PROMPTPAY_NOT_SET instead of an explanation.
+func TestEveryDomainCodeHasMessages(t *testing.T) {
+	for _, code := range domain.RegisteredCodes() {
+		if _, ok := th[code]; !ok {
+			t.Errorf("no Thai message for %s", code)
+		}
+		if _, ok := en[code]; !ok {
+			t.Errorf("no English message for %s", code)
+		}
+	}
+}
 
 func TestCatalogueParity(t *testing.T) {
 	missingEN, missingTH := MissingIn()

@@ -104,7 +104,8 @@ const main = async () => {
     if (m.type() === 'error' && !m.text().includes('favicon')) consoleErrors.push(m.text().slice(0, 200));
   });
 
-  const state = {};
+  // every bill this run creates, so the cleanup script can cancel exactly those and nothing else
+  const state = { createdSales: [] };
 
   // ---------------------------------------------------------------- A. auth
   await step('A1', 'รหัสผ่านผิดต้องไม่ให้เข้า', async () => {
@@ -190,6 +191,7 @@ const main = async () => {
     const docNo = preview.match(/N\d{4}-\d{5}/)?.[0];
     assert(docNo, 'no document number on the receipt');
     state.saleDoc = docNo;
+    state.createdSales.push(docNo);
     await page.getByTestId('receipt-new-sale').click();
     await page.waitForTimeout(1000);
     const cart = await page.getByTestId('cart-line').count();
@@ -625,6 +627,127 @@ const main = async () => {
     return 'API 403 ทั้งสองเส้นทาง และหน้าเว็บถูกกั้น';
   });
 
+  // ------------------------------------------------------ Q. QR payment + slip
+  await step('Q1', 'ตั้งค่าพร้อมเพย์ของร้าน (และปฏิเสธเลขที่ผิดรูปแบบ)', async () => {
+    const before = await api(page, '/store/settings');
+    state.promptPayBefore = before.body?.promptpay_id ?? '';
+    state.promptPayNameBefore = before.body?.promptpay_name ?? '';
+    await page.goto(`${BASE}/settings/receipt`, { waitUntil: 'domcontentloaded' });
+    const id = page.getByTestId('promptpay-id');
+    await id.waitFor({ timeout: 30_000 });
+
+    // a typo must be refused before it can ever be turned into a QR code
+    await id.fill('12345');
+    await page.getByRole('button', { name: L('common.save'), exact: true }).click();
+    await page.waitForTimeout(1200);
+    const saved = await api(page, '/store/settings');
+    assert((saved.body?.promptpay_id ?? '') !== '12345', 'an invalid PromptPay id was saved');
+
+    await id.fill('0812345678');
+    await page.getByTestId('promptpay-name').fill('E2E Test Shop');
+    await page.getByRole('button', { name: L('common.save'), exact: true }).click();
+    await page.waitForTimeout(1500);
+    const after = await api(page, '/store/settings');
+    assert(after.body?.promptpay_id === '0812345678', `PromptPay not saved: ${after.body?.promptpay_id}`);
+    return `บันทึก 0812345678 (เดิม: ${state.promptPayBefore || 'ว่าง'})`;
+  });
+
+  await step('Q2', 'หน้าขายสร้าง QR พร้อมเพย์ตามยอดบิล และโค้ดถูกต้องตามมาตรฐาน', async () => {
+    await page.goto(`${BASE}/pos`, { waitUntil: 'domcontentloaded' });
+    const scan = page.getByTestId('scan-input');
+    await scan.waitFor({ timeout: 30_000 });
+    await scan.fill(state.product.primary_barcode);
+    await scan.press('Enter');
+    await page.getByTestId('cart-line').first().waitFor({ timeout: 15_000 });
+    await page.getByTestId('pay-button').first().click();
+    await page.getByTestId('tender-confirm').waitFor({ timeout: 15_000 });
+
+    await page.getByRole('combobox', { name: L('pos.paymentMethod') }).click();
+    await page.getByRole('option', { name: L('pos.methods.qr') }).click();
+
+    const qr = page.getByTestId('promptpay-qr');
+    await qr.waitFor({ timeout: 20_000 });
+    const payload = await qr.getAttribute('data-payload');
+    assert(payload && payload.startsWith('0002010102'), `unexpected payload: ${payload}`);
+
+    // the checksum a banking app recomputes before it will read the code
+    const crcOk = await page.evaluate((p) => {
+      let crc = 0xffff;
+      const body = p.slice(0, -4);
+      for (let i = 0; i < body.length; i += 1) {
+        crc ^= body.charCodeAt(i) << 8;
+        for (let b = 0; b < 8; b += 1) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+      }
+      return crc.toString(16).toUpperCase().padStart(4, '0') === p.slice(-4);
+    }, payload);
+    assert(crcOk, 'the QR checksum is wrong — banking apps would refuse it');
+
+    const due = (await page.getByTestId('tender-net').innerText()).replace(/[^\d.]/g, '');
+    assert(payload.includes(`54${String(due.length).padStart(2, '0')}${due}`), `the amount ${due} is not in the code: ${payload}`);
+    state.qrDue = due;
+    return `${payload.slice(0, 28)}… ยอด ${due} CRC ถูกต้อง`;
+  });
+
+  await step('Q3', 'ถ่ายรูปสลิปด้วยกล้องแล้วขายจบ รูปผูกกับบิลนั้น', async () => {
+    await page.getByTestId('slip-capture-open').click();
+    const video = page.getByTestId('slip-video');
+    await video.waitFor({ timeout: 20_000 });
+    await page.waitForFunction(() => (document.querySelector('[data-testid="slip-video"]')?.readyState ?? 0) >= 2, null, { timeout: 25_000 });
+    await page.getByTestId('slip-shutter').click();
+    await page.getByTestId('slip-preview').waitFor({ timeout: 15_000 });
+    await page.getByTestId('slip-use').click();
+    await page.getByTestId('slip-thumb').waitFor({ timeout: 10_000 });
+
+    await page.getByTestId('tender-amount-qr').fill(state.qrDue);
+    await page.getByTestId('tender-confirm').click();
+    await page.getByTestId('receipt-dialog').waitFor({ timeout: 25_000 });
+    const preview = await page.getByTestId('receipt-preview').innerText();
+    const docNo = preview.match(/N\d{4}-\d{5}/)?.[0];
+    assert(docNo, 'no document number after the QR sale');
+    state.qrSaleDoc = docNo;
+    state.createdSales.push(docNo);
+    await page.getByTestId('receipt-new-sale').click();
+    await page.waitForTimeout(1500);
+
+    const sale = await api(page, `/sales/by-doc/${docNo}`);
+    assert(sale.status === 200, `sale lookup ${sale.status}`);
+    state.qrSaleId = sale.body.id;
+    const slips = await api(page, `/sales/${sale.body.id}/slips`);
+    assert(slips.status === 200 && (slips.body ?? []).length === 1, `expected 1 slip, got ${String(JSON.stringify(slips.body)).slice(0, 120)}`);
+    state.slip = slips.body[0];
+    assert(Number(state.slip.size_bytes) > 1000, `the slip looks empty: ${state.slip.size_bytes} bytes`);
+    return `${docNo} แนบสลิป ${Math.round(state.slip.size_bytes / 1024)} KB`;
+  });
+
+  await step('Q4', 'รูปสลิปที่เก็บไว้ดาวน์โหลดกลับมาได้ครบ', async () => {
+    const img = await page.evaluate(async (id) => {
+      const s = JSON.parse(window.localStorage.getItem('pos.session') ?? '{}');
+      const res = await fetch(`/api/v1/slips/${id}/image`, { headers: { Authorization: `Bearer ${s.access_token}` } });
+      const buf = await res.arrayBuffer();
+      const head = Array.from(new Uint8Array(buf.slice(0, 3)));
+      return { status: res.status, type: res.headers.get('content-type'), bytes: buf.byteLength, head };
+    }, state.slip.id);
+    assert(img.status === 200, `image ${img.status}`);
+    assert(img.bytes === Number(state.slip.size_bytes), `size mismatch: ${img.bytes} vs ${state.slip.size_bytes}`);
+    // JPEG magic number — the bytes really are the photograph, not an error page
+    assert(img.head[0] === 0xff && img.head[1] === 0xd8, `not a JPEG: ${img.head}`);
+    return `${img.type} ${img.bytes} bytes`;
+  });
+
+  await step('Q5', 'เมนูสลิปรอตรวจสอบ: ยืนยันแล้วหลุดจากรายการ', async () => {
+    await page.goto(`${BASE}/slips`, { waitUntil: 'domcontentloaded' });
+    const card = page.getByTestId('pending-slip').filter({ hasText: state.qrSaleDoc });
+    await card.first().waitFor({ timeout: 25_000 });
+    await card.first().getByTestId('pending-slip-verify').click();
+    await page.waitForTimeout(2000);
+    const after = await api(page, `/sales/${state.qrSaleId}/slips`);
+    const slip = (after.body ?? [])[0];
+    assert(slip?.verified_at, 'the slip was not marked as checked');
+    const body = await page.locator('body').innerText();
+    assert(!body.includes(state.qrSaleDoc), 'the verified slip is still in the pending list');
+    return `ยืนยันโดย ${slip.verified_by_name} เวลา ${String(slip.verified_at).slice(11, 19)}`;
+  });
+
   // ------------------------------------------------------------ P. negatives
   await step('P1', 'สแกนบาร์โค้ดที่ไม่มี → เปิดหน้าต่างค้นหา', async () => {
     await page.goto(`${BASE}/pos`, { waitUntil: 'domcontentloaded' });
@@ -656,6 +779,13 @@ const main = async () => {
   // -------------------------------------------------------------- cleanup
   await step('Z1', 'เก็บกวาดข้อมูลทดสอบ', async () => {
     const notes = [];
+    // put the shop's own PromptPay setting back, whatever it was before the run
+    if (state.promptPayBefore !== undefined) {
+      const cur = await api(page, '/store/settings');
+      const body = { ...(cur.body ?? {}), promptpay_id: state.promptPayBefore, promptpay_name: state.promptPayNameBefore ?? '' };
+      const r = await api(page, '/store/settings', { method: 'PUT', body: JSON.stringify(body) });
+      notes.push(`promptpay:${r.status}`);
+    }
     const cart = await page.getByTestId('cart-line').count().catch(() => 0);
     if (cart > 0) {
       await page.keyboard.press('F8').catch(() => {});
@@ -687,7 +817,10 @@ const main = async () => {
   const fail = results.filter((r) => r.status === 'FAIL').length;
   console.log(`\n=== ${pass} passed, ${fail} failed, run ${RUN} against ${BASE} ===`);
   mkdirSync(here, { recursive: true });
-  writeFileSync(resolve(here, 'report.json'), JSON.stringify({ base: BASE, run: RUN, at: new Date().toISOString(), results }, null, 2));
+  writeFileSync(
+    resolve(here, 'report.json'),
+    JSON.stringify({ base: BASE, run: RUN, at: new Date().toISOString(), created: { sales: state.createdSales }, results }, null, 2),
+  );
   process.exitCode = fail ? 1 : 0;
 };
 

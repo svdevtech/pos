@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useSession } from '@/components/Providers';
 import { GlassButton, GlassDialog } from '@/components/glass';
+import SaleSlips from '@/components/pos/SaleSlips';
 import { resolveLocale } from '@/i18n/config';
 import { MUTATING_ROLES } from '@/lib/auth/session';
 import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
@@ -215,6 +216,13 @@ export default function SaleDetailDialog({ saleId, open, onClose, onReprint, onC
               </Stack>
             </Grid>
           </Grid>
+          {/* transfer/QR bills carry a photograph of the customer's confirmation */}
+          {(s.payments ?? []).some((p) => p.method === 'qr' || p.method === 'transfer') && (
+            <>
+              <Divider />
+              <SaleSlips saleId={s.id} allowAdd={s.status === 'completed'} />
+            </>
+          )}
         </Stack>
       )}
     </GlassDialog>

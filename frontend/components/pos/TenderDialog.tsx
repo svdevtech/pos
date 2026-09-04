@@ -1,11 +1,14 @@
 'use client';
 
 import AddIcon from '@mui/icons-material/Add';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DialpadIcon from '@mui/icons-material/Dialpad';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
+import CircularProgress from '@mui/material/CircularProgress';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
@@ -13,12 +16,18 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
 import NumericKeypad, { applyKey, keypadDefault, readKeypadOverride, writeKeypad, type KeypadMode } from '@/components/pos/NumericKeypad';
+import PromptPayQR from '@/components/pos/PromptPayQR';
+import SlipCaptureDialog from '@/components/pos/SlipCaptureDialog';
 import { resolveLocale } from '@/i18n/config';
+import { isApiError } from '@/lib/api/client';
 import { formatMoney } from '@/lib/format';
+import { posApi, posKeys } from '@/lib/pos/api';
+import type { CapturedPhoto } from '@/lib/pos/photoCapture';
 import { PAYMENT_METHODS, money, type Member, type PaymentMethod, type TenderInput } from '@/lib/pos/types';
 
 interface Row {
@@ -34,7 +43,7 @@ interface Props {
   /** Amount due (server-quoted net). */
   net: number;
   member: Member | null;
-  onConfirm: (payments: TenderInput[], printReceipt: boolean) => Promise<void> | void;
+  onConfirm: (payments: TenderInput[], printReceipt: boolean, slip?: CapturedPhoto | null) => Promise<void> | void;
   /** Default of the "print receipt" checkbox (store setting, overridden per device). */
   defaultPrintReceipt?: boolean;
   /** Persists the cashier's choice for the next bill. */
@@ -101,6 +110,10 @@ export default function TenderDialog({
   // on this device.
   const [keypadOn, setKeypadOn] = useState(false);
   const [activeRow, setActiveRow] = useState<number | null>(null);
+  // The slip photo is taken before the bill exists, so it is held here and uploaded by the POS
+  // page once the sale has an id.
+  const [slip, setSlip] = useState<CapturedPhoto | null>(null);
+  const [slipOpen, setSlipOpen] = useState(false);
   const t = useTranslations('pos');
   const locale = resolveLocale(useLocale());
   const [rows, setRows] = useState<Row[]>([newRow('cash')]);
@@ -112,11 +125,27 @@ export default function TenderDialog({
       setActiveRow(first.id);
       setPrintReceipt(defaultPrintReceipt);
       setKeypadOn(readKeypadOverride() ?? keypadDefault(keypadMode));
+      setSlip(null);
     }
   }, [open, defaultPrintReceipt, keypadMode]);
 
   const creditAllowed = Boolean(member && !member.is_walkin);
   const s = useMemo(() => settle(net, rows), [net, rows]);
+
+  // The QR only appears once the cashier picks that tender; the amount on the code is whatever
+  // that row is set to, falling back to the whole bill while it is still empty.
+  const qrRow = rows.find((r) => r.method === 'qr');
+  const qrAmount = qrRow ? (num(qrRow.amount) > 0 ? money(num(qrRow.amount)) : money(net)) : 0;
+  const qr = useQuery({
+    queryKey: posKeys.paymentQR(qrAmount),
+    queryFn: () => posApi.paymentQR(qrAmount),
+    enabled: open && Boolean(qrRow) && qrAmount > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const qrUnset = isApiError(qr.error) && qr.error.code === 'PROMPTPAY_NOT_SET';
+  // transfers and card payments land in the bank too, so a slip is worth keeping for those
+  const needsSlip = rows.some((r) => r.method === 'qr' || r.method === 'transfer');
 
   const update = (id: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const remove = (id: number) => setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.id !== id) : rs));
@@ -161,7 +190,7 @@ export default function TenderDialog({
 
   const confirm = () => {
     if (!s.valid || busy) return;
-    void onConfirm(payments(), printReceipt);
+    void onConfirm(payments(), printReceipt, slip);
   };
 
   const methodLabel = (m: PaymentMethod) => t(`methods.${m}`);
@@ -306,6 +335,65 @@ export default function TenderDialog({
               )}
             </Box>
 
+            {/* PromptPay: the customer scans this, pays, and shows the confirmation slip */}
+            {qrRow && (
+              <Box
+                sx={{
+                  borderRadius: 3,
+                  p: 2,
+                  background: (th) => th.glass.surfaceStrong,
+                  border: (th) => `1px solid ${th.glass.border}`,
+                }}
+                data-testid="qr-panel"
+              >
+                {qrUnset ? (
+                  <Alert severity="info" data-testid="qr-not-configured">
+                    {t('promptPayNotSet')}
+                  </Alert>
+                ) : qr.isError ? (
+                  <Alert severity="warning">{t('promptPayFailed')}</Alert>
+                ) : qr.data ? (
+                  <Stack spacing={1} alignItems="center">
+                    <Typography variant="subtitle2">{t('scanToPay', { amount: formatMoney(qrAmount, locale) })}</Typography>
+                    <PromptPayQR payload={qr.data.payload} size={220} caption={t('promptPayTo', { id: qr.data.masked_id })} />
+                  </Stack>
+                ) : (
+                  <Stack alignItems="center" sx={{ py: 3 }}>
+                    <CircularProgress size={24} />
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            {/* a slip belongs to any payment that arrives in the bank, not only to the QR */}
+            {needsSlip && (
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <GlassButton
+                  variant={slip ? 'outlined' : 'contained'}
+                  size="small"
+                  startIcon={slip ? <CheckCircleIcon /> : <CameraAltIcon />}
+                  onClick={() => setSlipOpen(true)}
+                  data-testid="slip-capture-open"
+                >
+                  {slip ? t('slipAttached') : t('slipCapture')}
+                </GlassButton>
+                {slip && (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={slip.dataUrl}
+                      alt={t('slipCaptureTitle')}
+                      style={{ height: 48, borderRadius: 6, border: '1px solid rgba(255,255,255,0.25)' }}
+                      data-testid="slip-thumb"
+                    />
+                    <GlassButton variant="text" size="small" color="warning" onClick={() => setSlip(null)} data-testid="slip-clear">
+                      {t('slipRemove')}
+                    </GlassButton>
+                  </>
+                )}
+              </Stack>
+            )}
+
             <Divider />
             <Typography variant="subtitle2" color="text.secondary">
               {t('quickCash')}
@@ -427,6 +515,12 @@ export default function TenderDialog({
           </Box>
         </Grid>
       </Grid>
+      <SlipCaptureDialog
+        open={slipOpen}
+        onClose={() => setSlipOpen(false)}
+        onCapture={setSlip}
+        amountLabel={t('slipForAmount', { amount: formatMoney(qrAmount > 0 ? qrAmount : s.nonCash, locale) })}
+      />
     </GlassDialog>
   );
 }

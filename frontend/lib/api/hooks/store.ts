@@ -17,6 +17,10 @@ export interface StoreSettings {
   drawer_port?: string;
   display_port?: string;
   rounding?: number | string;
+  /** PromptPay account the till builds payment QR codes for; empty turns the feature off. */
+  promptpay_id?: string;
+  /** ASCII payee name shown in the customer's banking app (max 25 characters). */
+  promptpay_name?: string;
   [key: string]: unknown;
 }
 

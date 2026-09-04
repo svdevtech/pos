@@ -153,6 +153,12 @@ var th = map[string]string{
 
 	"IMPORT_MANIFEST_INVALID": "ไฟล์ manifest ของข้อมูลเดิมไม่ถูกต้อง",
 
+	"CONVERSION_RULE_MISSING": "ยังไม่ได้ตั้งสูตรแปลงหน่วยของสินค้านี้ กรุณาระบุจำนวนต่อหน่วยก่อน",
+
+	"SLIP_TOO_LARGE":    "รูปสลิปใหญ่เกิน {max_mb} MB กรุณาถ่ายใหม่หรือย่อรูปก่อน",
+	"SLIP_FORMAT":       "รองรับเฉพาะไฟล์รูปภาพ (JPEG/PNG/WebP) เท่านั้น",
+	"PROMPTPAY_NOT_SET": "ยังไม่ได้ตั้งพร้อมเพย์ของร้าน กรุณาไปที่ ตั้งค่า → ใบเสร็จและการชำระเงิน",
+
 	"MEMBER_INACTIVE": "สมาชิกนี้ถูกระงับหรือพ้นสภาพ กรุณาติดต่อร้าน",
 	"LINE_UPSTREAM":   "ไม่สามารถตรวจสอบบัญชี LINE ได้ กรุณาลองใหม่",
 }
@@ -224,6 +230,12 @@ var en = map[string]string{
 	"AI_UPSTREAM":   "The AI service is not responding, please retry",
 
 	"IMPORT_MANIFEST_INVALID": "Legacy data manifest is invalid",
+
+	"CONVERSION_RULE_MISSING": "No conversion rule for this product yet; set how many units one pack yields",
+
+	"SLIP_TOO_LARGE":    "The slip photo is larger than {max_mb} MB; take it again or shrink it",
+	"SLIP_FORMAT":       "Only image files are accepted (JPEG/PNG/WebP)",
+	"PROMPTPAY_NOT_SET": "PromptPay is not configured for this store yet (Settings → Receipt & payment)",
 
 	"MEMBER_INACTIVE": "This member is suspended or inactive; please contact the store",
 	"LINE_UPSTREAM":   "Could not verify the LINE account, please retry",

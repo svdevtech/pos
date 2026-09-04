@@ -110,7 +110,8 @@
     "suppliers": "Suppliers",
     "promotions": "Promotions",
     "help": "Manual",
-    "hideMenu": "Hide menu"
+    "hideMenu": "Hide menu",
+    "slips": "Slips to check"
   },
   "errors": {
     "AUTH_LOGIN_FAILED": "Incorrect store code, username or password",
@@ -385,7 +386,35 @@
     "varianceOver": "Over",
     "varianceShort": "Short",
     "yesterday": "Yesterday",
-    "printReceiptHint": "Turn off when the customer does not want a receipt (you can still reprint it later)"
+    "printReceiptHint": "Turn off when the customer does not want a receipt (you can still reprint it later)",
+    "scanToPay": "Scan to pay {amount}",
+    "promptPayTo": "PromptPay {id}",
+    "promptPayNotSet": "PromptPay is not set up for this store. Add the number under Settings → Receipt & payment.",
+    "promptPayFailed": "Could not build the QR code, please try again",
+    "slipCapture": "Photograph the slip",
+    "slipAttached": "Slip attached",
+    "slipRemove": "Remove photo",
+    "slipCaptureTitle": "Photograph the transfer slip",
+    "slipTakePhoto": "Take photo",
+    "slipRetake": "Retake",
+    "slipUsePhoto": "Use this photo",
+    "slipChooseFile": "Choose a file",
+    "slipForAmount": "Slip for {amount}",
+    "slipUploadFailed": "The slip photo could not be saved (the bill was saved). Attach it again from the sales history.",
+    "slipSaved": "Slip photo saved",
+    "slips": "Transfer slips",
+    "slipsPending": "Slips to check",
+    "slipVerify": "Confirm the money arrived",
+    "slipUnverify": "Undo confirmation",
+    "slipVerified": "Checked by {name}",
+    "slipUnverified": "Not checked yet",
+    "slipCapturedBy": "Taken by {name}",
+    "slipNone": "No slip photo for this bill yet",
+    "slipDelete": "Delete slip",
+    "slipDeleted": "Slip deleted",
+    "slipOpenImage": "Open full size",
+    "slipsPendingEmpty": "No slips are waiting to be checked",
+    "slipsPendingDesc": "Slip photos taken at the till that nobody has compared with the bank account yet"
   },
   "receipt": {
     "title": "Receipt",
@@ -1420,7 +1449,14 @@
     "drawerPort": "Cash drawer port",
     "displayPort": "Customer display port",
     "autoPrintReceiptHint": "Print the receipt right after payment (the cashier can still choose per bill)",
-    "auto_print_receipt": "Print receipt automatically"
+    "auto_print_receipt": "Print receipt automatically",
+    "promptPay": "PromptPay (QR payment)",
+    "promptPayHint": "Once set, the till shows a QR code for the exact bill amount",
+    "promptPayId": "PromptPay number / tax id",
+    "promptPayIdHint": "A 10-digit mobile number, a 13-digit citizen or tax id, or a 15-digit e-wallet id",
+    "promptPayIdInvalid": "That is not a valid PromptPay id",
+    "promptPayName": "Payee name (English)",
+    "promptPayNameHint": "Shown in the customer's banking app; English only, up to 25 characters"
   },
   "admin": {
     "title": "Platform admin",

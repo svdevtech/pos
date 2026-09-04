@@ -15,6 +15,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import Tooltip from '@mui/material/Tooltip';
 import PersonIcon from '@mui/icons-material/Person';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SavingsIcon from '@mui/icons-material/Savings';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -61,6 +62,7 @@ type NavKey =
   | 'promotions'
   | 'members'
   | 'ar'
+  | 'slips'
   | 'expenses'
   | 'reports'
   | 'dividends'
@@ -91,6 +93,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'promotions', href: '/promotions', icon: <LocalOfferIcon />, roles: BACK_OFFICE },
   { key: 'members', href: '/members', icon: <GroupsIcon />, roles: BACK_OFFICE },
   { key: 'ar', href: '/ar', icon: <AccountBalanceWalletIcon />, roles: BACK_OFFICE },
+  // transfer/QR slips a manager still has to compare with the bank account
+  { key: 'slips', href: '/slips', icon: <ReceiptIcon />, roles: BACK_OFFICE },
   { key: 'expenses', href: '/expenses', icon: <ReceiptLongIcon />, roles: BACK_OFFICE },
   { key: 'reports', href: '/reports', icon: <AssessmentIcon />, roles: BACK_OFFICE },
   { key: 'dividends', href: '/dividends', icon: <SavingsIcon />, roles: BACK_OFFICE },

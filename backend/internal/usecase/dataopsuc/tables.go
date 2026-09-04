@@ -35,6 +35,8 @@ var backupTables = []tableSpec{
 	{name: "sales", where: "t.store_id = $1", scoped: true},
 	{name: "sale_lines", where: "t.store_id = $1", scoped: true},
 	{name: "sale_payments", where: "t.store_id = $1", scoped: true},
+	// slip photographs travel with the backup: they are the evidence behind a transfer/QR payment
+	{name: "payment_slips", where: "t.store_id = $1", scoped: true},
 	{name: "sale_returns", where: "t.store_id = $1", scoped: true},
 	{name: "sale_return_lines", where: "EXISTS (SELECT 1 FROM sale_returns r WHERE r.id = t.return_id AND r.store_id = $1)"},
 	{name: "ar_payments", where: "t.store_id = $1", scoped: true},

@@ -35,6 +35,13 @@ type SalesService interface {
 	ListShifts(ctx context.Context, storeID uuid.UUID, limit, offset int) ([]domain.Shift, int64, error)
 	DrawerOp(ctx context.Context, storeID uuid.UUID, actor salesuc.Actor, reason string, amount decimal.Decimal, note string) error
 	DrawerLogs(ctx context.Context, storeID uuid.UUID, from, to time.Time, limit, offset int) ([]postgres.DrawerLog, int64, error)
+	PaymentQRFor(ctx context.Context, storeID uuid.UUID, amount decimal.Decimal) (*salesuc.PaymentQR, error)
+	AttachSlip(ctx context.Context, actor salesuc.Actor, storeID uuid.UUID, in salesuc.SlipInput) (*domain.PaymentSlip, error)
+	SlipsOfSale(ctx context.Context, storeID, saleID uuid.UUID) ([]domain.PaymentSlip, error)
+	PendingSlips(ctx context.Context, storeID uuid.UUID, limit, offset int) ([]domain.PaymentSlip, int64, error)
+	SlipImage(ctx context.Context, storeID, id uuid.UUID) ([]byte, string, error)
+	SetSlipVerified(ctx context.Context, actor salesuc.Actor, storeID, id uuid.UUID, verified bool) (*domain.PaymentSlip, error)
+	DeleteSlip(ctx context.Context, actor salesuc.Actor, storeID, id uuid.UUID) error
 }
 
 func salesActor(r *http.Request) salesuc.Actor {
@@ -225,8 +232,10 @@ func (s *Server) mountSales(r chi.Router) {
 				}
 				created(w, out)
 			})
+			s.mountSaleSlips(r)
 		})
 	})
+	s.mountSlips(r)
 
 	r.Route("/held-bills", func(r chi.Router) {
 		r.Use(requireRole(rolesSell...))

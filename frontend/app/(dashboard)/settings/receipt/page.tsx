@@ -18,6 +18,7 @@ import { locales } from '@/i18n/config';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import { useSaveStoreSettings, useStoreSettings, type StoreSettings } from '@/lib/api/hooks/store';
 import { MUTATING_ROLES } from '@/lib/auth/session';
+import { promptPayIdValid } from '@/lib/pos/promptpayId';
 
 interface Values {
   paper_width: '58' | '80';
@@ -31,6 +32,8 @@ interface Values {
   drawer_port: string;
   display_port: string;
   rounding: string;
+  promptpay_id: string;
+  promptpay_name: string;
 }
 
 const ROUNDING_OPTIONS = ['0', '0.25', '0.5', '1'] as const;
@@ -49,6 +52,8 @@ function fromSettings(s: StoreSettings): Values {
     drawer_port: s.drawer_port ?? '',
     display_port: s.display_port ?? '',
     rounding: s.rounding === undefined || s.rounding === null ? '0' : String(s.rounding),
+    promptpay_id: s.promptpay_id ?? '',
+    promptpay_name: s.promptpay_name ?? '',
   };
 }
 
@@ -66,6 +71,8 @@ function toSettings(current: StoreSettings, v: Values): StoreSettings {
     drawer_port: v.drawer_port.trim(),
     display_port: v.display_port.trim(),
     rounding: Number(v.rounding),
+    promptpay_id: v.promptpay_id.trim(),
+    promptpay_name: v.promptpay_name.trim(),
   };
 }
 
@@ -85,8 +92,14 @@ function ReceiptSettingsContent() {
 
   const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((v) => (v ? { ...v, [key]: value } : v));
 
+  const promptPayError = Boolean(values && !promptPayIdValid(values.promptpay_id));
+
   const submit = () => {
     if (!values) return;
+    if (!promptPayIdValid(values.promptpay_id)) {
+      setFormError(t('promptPayIdInvalid'));
+      return;
+    }
     setFormError(null);
     // PUT replaces the whole map: merge with the latest server copy so unrelated keys survive.
     save.mutate(toSettings(settings.data ?? {}, values), {
@@ -179,6 +192,27 @@ function ReceiptSettingsContent() {
                       <MenuItem value="always">{t('keypadAlways')}</MenuItem>
                       <MenuItem value="off">{t('keypadOff')}</MenuItem>
                     </GlassInput>
+                  </Stack>
+                </GlassCard>
+                <GlassCard title={t('promptPay')} subtitle={t('promptPayHint')}>
+                  <Stack spacing={2}>
+                    <GlassInput
+                      label={t('promptPayId')}
+                      value={values.promptpay_id}
+                      onChange={(e) => set('promptpay_id', e.target.value)}
+                      placeholder="081-234-5678"
+                      helperText={promptPayError ? t('promptPayIdInvalid') : t('promptPayIdHint')}
+                      error={promptPayError}
+                      inputProps={{ inputMode: 'tel', 'data-testid': 'promptpay-id' }}
+                    />
+                    <GlassInput
+                      label={t('promptPayName')}
+                      value={values.promptpay_name}
+                      onChange={(e) => set('promptpay_name', e.target.value)}
+                      placeholder="Ban Kaen Community Shop"
+                      helperText={t('promptPayNameHint')}
+                      inputProps={{ maxLength: 25, 'data-testid': 'promptpay-name' }}
+                    />
                   </Stack>
                 </GlassCard>
                 <GlassCard title={t('hardware')} subtitle={t('portHint')}>

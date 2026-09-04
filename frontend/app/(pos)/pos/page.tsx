@@ -56,6 +56,7 @@ import {
   type CartLine,
   type CartState,
 } from '@/lib/pos/cart';
+import type { CapturedPhoto } from '@/lib/pos/photoCapture';
 import { useWedgeScanner } from '@/lib/pos/useWedgeScanner';
 import { dec, type HeldBill, type Member, type ProductView, type Sale, type TenderInput } from '@/lib/pos/types';
 
@@ -286,8 +287,20 @@ export default function PosPage() {
 
   // ----- mutations ---------------------------------------------------------
   const createSale = useMutation({
-    mutationFn: ({ payments }: { payments: TenderInput[]; print: boolean }) =>
-      posApi.createSale(toSaleInput(cart, payments, readTerminal(settings.data?.default_terminal as string | undefined))),
+    mutationFn: async ({ payments, slip }: { payments: TenderInput[]; print: boolean; slip?: CapturedPhoto | null }) => {
+      const sale = await posApi.createSale(toSaleInput(cart, payments, readTerminal(settings.data?.default_terminal as string | undefined)));
+      // The photo can only be attached once the bill exists. A failure here must not undo the
+      // sale: the cashier is told, and the slip can be added later from the bill.
+      if (slip) {
+        const transfer = payments.find((p) => p.method === 'qr') ?? payments.find((p) => p.method === 'transfer');
+        try {
+          await posApi.attachSlip(sale.id, { image: slip.dataUrl, mime: slip.mime, method: transfer?.method ?? 'qr', amount: transfer?.amount });
+        } catch {
+          toast.error(t('slipUploadFailed'));
+        }
+      }
+      return sale;
+    },
     onSuccess: (sale, { print }) => {
       setTenderOpen(false);
       setLastSale(sale);
@@ -678,7 +691,7 @@ export default function PosPage() {
         member={member}
         busy={createSale.isPending}
         error={createSale.error ? errorMessage(createSale.error) : null}
-        onConfirm={(payments, print) => createSale.mutate({ payments, print })}
+        onConfirm={(payments, print, slip) => createSale.mutate({ payments, print, slip })}
         keypadMode={keypadMode}
         defaultPrintReceipt={printReceiptDefault}
         onPrintReceiptChange={(on) => {

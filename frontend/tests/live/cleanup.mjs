@@ -4,7 +4,7 @@
  *   BASE=... node tests/live/cleanup.mjs
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 const BASE=process.env.BASE ?? 'https://t-pos.tdev2022.com';
 const th=JSON.parse(readFileSync('i18n/messages/th.json','utf8'));
 const L=(p)=>p.split('.').reduce((o,k)=>o?.[k],th);
@@ -24,17 +24,28 @@ const call = (path, init) => p.evaluate(async ([pa,i])=>{
 },[path,init??{}]);
 
 const today=new Date().toISOString().slice(0,10);
-// 1. cancel sales made by the runs (today, with a member whose code starts with E2E, or cash test bills)
+// bills the last full-system run recorded; cancelling by number never touches a real sale
+const report = existsSync('tests/live/report.json') ? JSON.parse(readFileSync('tests/live/report.json','utf8')) : {};
+const ownDocs = new Set(report?.created?.sales ?? []);
+
+// 1. cancel sales made by the runs (today, recorded by the runner, or with an E2E member / test amount)
 const sales = await call(`/sales?from=${today}&to=${today}&page_size=100`);
-let cancelled=0;
+let cancelled=0, slipsRemoved=0;
 for (const s of sales.body?.items ?? []) {
   if (s.status !== 'completed') continue;
-  const isTest = String(s.member_code ?? '').startsWith('E2E') || Number(s.net) === 660;
+  const isTest = ownDocs.has(s.doc_no) || String(s.member_code ?? '').startsWith('E2E') || Number(s.net) === 660;
   if (!isTest) continue;
+  // slip photographs of a test bill are test data too
+  const slips = await call(`/sales/${s.id}/slips`);
+  for (const slip of slips.body ?? []) {
+    const d = await call(`/slips/${slip.id}`, {method:'DELETE'});
+    if (d.status < 300) slipsRemoved++;
+  }
   const r = await call(`/sales/${s.id}/cancel`, {method:'POST', body: JSON.stringify({reason:'ยกเลิกข้อมูลทดสอบ E2E'})});
   if (r.status < 300) cancelled++;
 }
 console.log('sales cancelled:', cancelled);
+console.log('slips deleted:', slipsRemoved);
 
 // 2. expenses of exactly 55 today (the runner's amount)
 const exp = await call(`/expenses?from=${today}&to=${today}&page_size=100`);

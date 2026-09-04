@@ -46,7 +46,21 @@ func (e *Error) Wrap(cause error) *Error {
 	return &cp
 }
 
-func NewError(code string, status int) *Error { return &Error{Code: code, Status: status} }
+func NewError(code string, status int) *Error {
+	registeredCodes = append(registeredCodes, code)
+	return &Error{Code: code, Status: status}
+}
+
+// registeredCodes remembers every code declared here so a test can prove each one has a Thai and
+// an English message; without it a new error reaches the user as a bare code.
+var registeredCodes []string
+
+// RegisteredCodes returns every error code the domain declares.
+func RegisteredCodes() []string {
+	out := make([]string, len(registeredCodes))
+	copy(out, registeredCodes)
+	return out
+}
 
 // AsError extracts a *Error from err, or wraps unknown errors as INTERNAL.
 func AsError(err error) *Error {
@@ -119,6 +133,10 @@ var (
 	ErrAIUpstream  = NewError("AI_UPSTREAM", http.StatusBadGateway)
 
 	ErrConversionRuleMissing = NewError("CONVERSION_RULE_MISSING", http.StatusBadRequest)
+
+	ErrSlipTooLarge   = NewError("SLIP_TOO_LARGE", http.StatusRequestEntityTooLarge)
+	ErrSlipFormat     = NewError("SLIP_FORMAT", http.StatusBadRequest)
+	ErrPromptPayUnset = NewError("PROMPTPAY_NOT_SET", http.StatusBadRequest)
 
 	ErrImportManifest = NewError("IMPORT_MANIFEST_INVALID", http.StatusBadRequest)
 
