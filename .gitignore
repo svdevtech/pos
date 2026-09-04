@@ -31,3 +31,4 @@ backend/data/
 # Playwright artefacts
 frontend/test-results/
 test-results/
+frontend/tests/live/multi-store-report.json
