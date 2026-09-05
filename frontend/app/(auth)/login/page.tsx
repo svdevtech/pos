@@ -25,6 +25,7 @@ import { GlassButton, GlassCard, GlassInput } from '@/components/glass';
 import { api, isApiError } from '@/lib/api/client';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import type { AuthResponse, Role } from '@/lib/auth/session';
+import { readDeviceStore, storeFromSearch, writeDeviceStore } from '@/lib/pos/storeParam';
 
 interface LoginValues {
   store_code: string;
@@ -57,6 +58,16 @@ function LoginForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const expired = params.get('expired') === '1';
   const next = safeNext(params.get('next'));
+  // `?store=CODE` comes from the shop's desktop shortcut; otherwise use what this device was set up
+  // with. Either way it is only the starting value of an editable field.
+  const [deviceStore, setDeviceStore] = useState('');
+  const [storeResolved, setStoreResolved] = useState(false);
+  const urlStore = storeFromSearch(params.toString());
+  useEffect(() => {
+    if (urlStore) writeDeviceStore(urlStore);
+    setDeviceStore(urlStore || readDeviceStore());
+    setStoreResolved(true);
+  }, [urlStore]);
 
   // Already logged in: skip the form.
   useEffect(() => {
@@ -84,6 +95,8 @@ function LoginForm() {
     control,
     handleSubmit,
     setError,
+    setFocus,
+    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
@@ -91,6 +104,19 @@ function LoginForm() {
     defaultValues: { store_code: '', username: '', password: '', platform_admin: false },
   });
   const isPlatformAdmin = watch('platform_admin');
+
+  // localStorage is only readable on the client, so the field is filled once it is known
+  // localStorage is only readable on the client, so the field is filled — and the cursor placed —
+  // once the device's store is known
+  useEffect(() => {
+    if (!storeResolved) return;
+    if (deviceStore) {
+      setValue('store_code', deviceStore, { shouldValidate: false });
+      setFocus('username'); // the store is already known; the cashier types their name
+    } else {
+      setFocus('store_code');
+    }
+  }, [storeResolved, deviceStore, setValue, setFocus]);
 
   const onSubmit = async (values: LoginValues) => {
     setFormError(null);
@@ -149,16 +175,16 @@ function LoginForm() {
           <Controller
             name="store_code"
             control={control}
-            render={({ field }) => (
+            render={({ field: { ref, ...field } }) => (
               <GlassInput
                 {...field}
+                inputRef={ref}
                 id="store_code"
                 label={t('storeCode')}
                 autoComplete="organization"
-                autoFocus
                 error={Boolean(errors.store_code)}
-                helperText={errors.store_code?.message}
-                inputProps={{ style: { textTransform: 'uppercase' } }}
+                helperText={errors.store_code?.message ?? (deviceStore ? t('storeCodeFromDevice') : undefined)}
+                inputProps={{ style: { textTransform: 'uppercase' }, 'data-testid': 'store-code' }}
               />
             )}
           />
@@ -167,9 +193,10 @@ function LoginForm() {
         <Controller
           name="username"
           control={control}
-          render={({ field }) => (
+          render={({ field: { ref, ...field } }) => (
             <GlassInput
               {...field}
+              inputRef={ref}
               id="username"
               label={t('username')}
               autoComplete="username"

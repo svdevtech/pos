@@ -82,7 +82,8 @@
     "passwordMismatch": "Passwords do not match",
     "sessionExpired": "Your session has expired, please sign in again",
     "loggedInAs": "Signed in as",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "storeCodeFromDevice": "This device's default — change it to sign in to another store"
   },
   "nav": {
     "dashboard": "Dashboard",

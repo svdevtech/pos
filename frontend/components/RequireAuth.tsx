@@ -5,6 +5,7 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import { useTranslations } from 'next-intl';
+import { storeFromSearch } from '@/lib/pos/storeParam';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import type { Role } from '@/lib/auth/session';
@@ -32,8 +33,14 @@ export default function RequireAuth({ children, roles }: Props) {
 
   useEffect(() => {
     if (ready && !session) {
-      const next = pathname && pathname !== '/' ? `?next=${encodeURIComponent(pathname)}` : '';
-      router.replace(`/login${next}`);
+      const search = typeof window === 'undefined' ? '' : window.location.search;
+      const params = new URLSearchParams();
+      if (pathname && pathname !== '/') params.set('next', `${pathname}${search}`);
+      // a till's shortcut carries ?store=CODE; keep it so the login screen can pre-fill it
+      const store = storeFromSearch(search);
+      if (store) params.set('store', store);
+      const query = params.toString();
+      router.replace(`/login${query ? `?${query}` : ''}`);
     }
   }, [ready, session, router, pathname]);
 
