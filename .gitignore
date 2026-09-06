@@ -32,3 +32,4 @@ backend/data/
 frontend/test-results/
 test-results/
 frontend/tests/live/multi-store-report.json
+legacy-kaen/

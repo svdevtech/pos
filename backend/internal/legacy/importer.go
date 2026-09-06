@@ -313,16 +313,27 @@ func (im *Importer) stageLookups(ctx context.Context, sr *StageReport) error {
 		if name == "" {
 			name = "ไม่ระบุหมวด"
 		}
+		// Look before inserting. A shop's brand table can hold two ids with the same category name
+		// (แก่นใต้ has two "อาหารสัตว์"), and the unique index on (store_id, name) would abort the
+		// whole transaction — inside one, a failed statement poisons everything after it, so an
+		// error path cannot recover. Both ids simply point at the one category.
+		brandID := r.Str("brand_id")
 		var id uuid.UUID
-		err := q.QueryRow(ctx, `INSERT INTO product_categories (store_id, name, legacy_id) VALUES ($1,$2,$3)
-			ON CONFLICT (store_id, legacy_id) WHERE legacy_id IS NOT NULL DO UPDATE SET name=EXCLUDED.name RETURNING id`, im.storeID, name, r.Str("brand_id")).Scan(&id)
-		if err != nil {
-			// name collision with a different legacy id → reuse existing by name
-			if e2 := q.QueryRow(ctx, `SELECT id FROM product_categories WHERE store_id=$1 AND name=$2`, im.storeID, name).Scan(&id); e2 != nil {
-				return fmt.Errorf("category %s: %w", name, err)
+		err := q.QueryRow(ctx, `SELECT id FROM product_categories WHERE store_id=$1 AND legacy_id=$2`, im.storeID, brandID).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = q.QueryRow(ctx, `SELECT id FROM product_categories WHERE store_id=$1 AND name=$2`, im.storeID, name).Scan(&id)
+			if err == nil {
+				im.warn("lookups", "category "+brandID+" ("+name+") shares its name with an existing category; both use the same one")
 			}
 		}
-		im.categories[r.Str("brand_id")] = id
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = q.QueryRow(ctx, `INSERT INTO product_categories (store_id, name, legacy_id) VALUES ($1,$2,$3) RETURNING id`,
+				im.storeID, name, brandID).Scan(&id)
+		}
+		if err != nil {
+			return fmt.Errorf("category %s: %w", name, err)
+		}
+		im.categories[brandID] = id
 		sr.RowsOut++
 		return nil
 	}); err != nil {
