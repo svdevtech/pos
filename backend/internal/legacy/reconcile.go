@@ -118,10 +118,30 @@ func (im *Importer) stageReconcile(ctx context.Context, sr *StageReport) error {
 	add("products (distinct ids in product ∪ delproducts)", fmt.Sprint(len(prodIDs)),
 		count(`SELECT count(*) FROM products WHERE store_id=$1 AND legacy_id IS NOT NULL AND COALESCE(archived_reason,'') <> 'placeholder_orphan'`, im.storeID),
 		fmt.Sprintf("dump rows %d + %d; deleted ids colliding with an active id are skipped", t("product"), t("delproducts")))
-	add("members", fmt.Sprint(t("customer")), count(`SELECT count(*) FROM members WHERE store_id=$1 AND legacy_id IS NOT NULL AND status <> 'inactive'`, im.storeID), "placeholder members excluded")
+	// Members are keyed on cust_id, and a shop's customer table can hold the same id twice
+	// (แก่นใต้ has five such pairs). The import keeps one member per id, so the expectation is the
+	// number of distinct ids — counting the raw rows would report a shortfall that is not one.
+	// The share capital of a repeated id is likewise counted once, the way the upsert stores it.
+	custShare := map[string]decimal.Decimal{}
+	_ = EachRow(im.m.Path("customer"), func(_ int, r Row) error {
+		id := r.Str("cust_id")
+		if id == "" {
+			return nil
+		}
+		custShare[id] = r.Dec("cust_hunmoney") // last row wins, as in the upsert
+		return nil
+	})
+	dupCust := t("customer") - len(custShare)
+	custNote := "placeholder members excluded"
+	if dupCust > 0 {
+		custNote = fmt.Sprintf("%s; %d duplicate cust_id row(s) in the dump collapse into one member each", custNote, dupCust)
+	}
+	add("members", fmt.Sprint(len(custShare)), count(`SELECT count(*) FROM members WHERE store_id=$1 AND legacy_id IS NOT NULL AND status <> 'inactive'`, im.storeID), custNote)
 	shareSum := decimal.Zero
-	_ = EachRow(im.m.Path("customer"), func(_ int, r Row) error { shareSum = shareSum.Add(r.Dec("cust_hunmoney")); return nil })
-	add("share capital Σ", dec2(shareSum.String()), sum(`SELECT COALESCE(sum(share_capital),0)::text FROM members WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
+	for _, v := range custShare {
+		shareSum = shareSum.Add(v)
+	}
+	add("share capital Σ", dec2(shareSum.String()), sum(`SELECT COALESCE(sum(share_capital),0)::text FROM members WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), custNote)
 	add("ar payments", fmt.Sprint(t("payments")), count(`SELECT count(*) FROM ar_payments WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
 	paySum := decimal.Zero
 	_ = EachRow(im.m.Path("payments"), func(_ int, r Row) error { paySum = paySum.Add(r.Dec("payment_pay")); return nil })
@@ -131,7 +151,12 @@ func (im *Importer) stageReconcile(ctx context.Context, sr *StageReport) error {
 	add("expenses", fmt.Sprint(t("expenses")), count(`SELECT count(*) FROM expenses WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
 	add("drawer logs", fmt.Sprint(t("logopencashdrawer")), count(`SELECT count(*) FROM cash_drawer_logs WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
 	add("dividend criteria", fmt.Sprint(t("criteriondividend")), count(`SELECT count(*) FROM dividend_criteria WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
-	add("dividend statements", fmt.Sprint(t("temps2")), count(`SELECT count(*) FROM dividend_member_statements s JOIN dividend_runs r ON r.id=s.run_id WHERE s.store_id=$1 AND r.source='legacy_import'`, im.storeID), "")
+	// one statement per member, so repeated cust_ids collapse here too
+	stmtIDs := map[string]bool{}
+	_ = EachRow(im.m.Path("temps2"), func(_ int, r Row) error { stmtIDs[r.Str("cust_id")] = true; return nil })
+	delete(stmtIDs, "")
+	add("dividend statements", fmt.Sprint(len(stmtIDs)), count(`SELECT count(*) FROM dividend_member_statements s JOIN dividend_runs r ON r.id=s.run_id WHERE s.store_id=$1 AND r.source='legacy_import'`, im.storeID),
+		fmt.Sprintf("dump rows %d", t("temps2")))
 	add("users", fmt.Sprint(t("usersys")), count(`SELECT count(*) FROM users WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
 
 	im.report.Reconcile = rc
