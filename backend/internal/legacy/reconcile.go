@@ -128,7 +128,9 @@ func (im *Importer) stageReconcile(ctx context.Context, sr *StageReport) error {
 		if id == "" {
 			return nil
 		}
-		custShare[id] = r.Dec("cust_hunmoney") // last row wins, as in the upsert
+		if _, seen := custShare[id]; !seen {
+			custShare[id] = r.Dec("cust_hunmoney") // the upsert keeps the first row's share capital
+		}
 		return nil
 	})
 	dupCust := t("customer") - len(custShare)
@@ -153,7 +155,7 @@ func (im *Importer) stageReconcile(ctx context.Context, sr *StageReport) error {
 	add("dividend criteria", fmt.Sprint(t("criteriondividend")), count(`SELECT count(*) FROM dividend_criteria WHERE store_id=$1 AND legacy_id IS NOT NULL`, im.storeID), "")
 	// one statement per member, so repeated cust_ids collapse here too
 	stmtIDs := map[string]bool{}
-	_ = EachRow(im.m.Path("temps2"), func(_ int, r Row) error { stmtIDs[r.Str("cust_id")] = true; return nil })
+	_ = EachRow(im.m.Path("temps2"), func(_ int, r Row) error { stmtIDs[r.Str("tempstr3")] = true; return nil })
 	delete(stmtIDs, "")
 	add("dividend statements", fmt.Sprint(len(stmtIDs)), count(`SELECT count(*) FROM dividend_member_statements s JOIN dividend_runs r ON r.id=s.run_id WHERE s.store_id=$1 AND r.source='legacy_import'`, im.storeID),
 		fmt.Sprintf("dump rows %d", t("temps2")))
