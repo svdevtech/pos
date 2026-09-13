@@ -23,3 +23,11 @@ test.describe('login page i18n', () => {
     await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบ' })).toBeVisible();
   });
 });
+
+test('the sign-in form never puts credentials in the URL', async ({ page }) => {
+  await page.goto('/login');
+  // Before React hydrates, a click submits the form the browser's own way. Without method="post"
+  // that is a GET, which writes the password into the URL — and into the server log and history.
+  const method = await page.locator('form').first().getAttribute('method');
+  expect(method?.toLowerCase()).toBe('post');
+});

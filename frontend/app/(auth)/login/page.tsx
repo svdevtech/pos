@@ -151,7 +151,10 @@ function LoginForm() {
 
   return (
     <GlassCard strong sx={{ width: '100%', maxWidth: 420, p: { xs: 3, sm: 4 } }}>
-      <Stack spacing={2.5} component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+      {/* method="post" matters before React has hydrated: a form with no method submits as GET, so
+          an early click would put the username and password in the URL — and from there into the
+          server log, the browser history and any Referer header. */}
+      <Stack spacing={2.5} component="form" method="post" onSubmit={handleSubmit(onSubmit)} noValidate>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Avatar sx={{ bgcolor: 'transparent', backgroundImage: (th) => th.glass.gradient, width: 48, height: 48 }}>
             <LockOutlinedIcon />
