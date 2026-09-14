@@ -1017,6 +1017,9 @@ type DashboardToday struct {
 	Transfer  decimal.Decimal `json:"transfer"`
 	QR        decimal.Decimal `json:"qr"`
 	Card      decimal.Decimal `json:"card"`
+	GWallet   decimal.Decimal `json:"gwallet"`
+	ThaiPlus  decimal.Decimal `json:"thaiplus"`
+	Welfare   decimal.Decimal `json:"welfare"`
 	Credit    decimal.Decimal `json:"credit"`
 	AvgBill   decimal.Decimal `json:"avg_bill"`
 	Cancelled int64           `json:"cancelled"`
@@ -1057,6 +1060,7 @@ func (s *Service) Dashboard(ctx context.Context, storeID uuid.UUID) (*Dashboard,
 			out.Today.Cancelled += r.Cancelled
 			out.Today.Net, out.Today.Cash, out.Today.Credit = out.Today.Net.Add(r.Net), out.Today.Cash.Add(r.Cash), out.Today.Credit.Add(r.Credit)
 			out.Today.Transfer, out.Today.QR, out.Today.Card = out.Today.Transfer.Add(r.Transfer), out.Today.QR.Add(r.QR), out.Today.Card.Add(r.Card)
+			out.Today.GWallet, out.Today.ThaiPlus, out.Today.Welfare = out.Today.GWallet.Add(r.GWallet), out.Today.ThaiPlus.Add(r.ThaiPlus), out.Today.Welfare.Add(r.Welfare)
 		}
 		out.Today.AvgBill = avg(out.Today.Net, out.Today.Bills)
 		mtd, err := s.rep.SalesTotals(ctx, storeID, monthStart, tomorrow)

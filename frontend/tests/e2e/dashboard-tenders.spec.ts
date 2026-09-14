@@ -35,7 +35,7 @@ async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string } 
         discount: '0.00',
         net: '1789.00',
         cancelled: 0,
-        by_method: { cash: '1542.00', transfer: '247.00' },
+        by_method: { cash: '1542.00', transfer: '247.00', gwallet: '670.20', thaiplus: '1002.80', welfare: '315.00' },
       }),
     );
     return;
@@ -50,6 +50,9 @@ async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string } 
         transfer: '247.00',
         qr: '120.50',
         card: opts.card ?? '0.00',
+        gwallet: '670.20',
+        thaiplus: '1002.80',
+        welfare: '315.00',
         credit: '80.00',
         avg_bill: '37.27',
         cancelled: 0,
@@ -78,13 +81,21 @@ test('every tender the shop took today has its own figure on the dashboard', asy
   await expect(page.getByText('฿ 120.50').first()).toBeVisible();
   await expect(page.getByText('฿ 80.00').first()).toBeVisible();
   await expect(page.getByText('เงินโอนวันนี้').first()).toBeVisible();
+  // the three state welfare rails the shop used to tally by hand
+  await expect(page.getByText('฿ 670.20').first()).toBeVisible();
+  await expect(page.getByText('฿ 1,002.80').first()).toBeVisible();
+  await expect(page.getByText('฿ 315.00').first()).toBeVisible();
+  await expect(page.getByText('จีวอลเล็ตวันนี้').first()).toBeVisible();
+  await expect(page.getByText('ไทยพลัสวันนี้').first()).toBeVisible();
+  await expect(page.getByText('บัตรสวัสดิการวันนี้').first()).toBeVisible();
 });
 
-test('card sales are shown when there are any, and take no room when there are none', async ({ page }) => {
+test('a tender with nothing in it today still shows, so a zero can be trusted', async ({ page }) => {
   await mockApi(page, { card: '0.00' });
   await page.goto('/dashboard');
   await expect(page.getByText('฿ 120.50').first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('บัตร', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('บัตรวันนี้').first()).toBeVisible();
+  await expect(page.getByText('฿ 0.00').first()).toBeVisible();
 });
 
 test('a shop on an older server still gets its transfers from the summary fallback', async ({ page }) => {
@@ -92,4 +103,5 @@ test('a shop on an older server still gets its transfers from the summary fallba
   await page.goto('/dashboard');
   await expect(page.getByText('฿ 1,542.00').first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('฿ 247.00').first()).toBeVisible();
+  await expect(page.getByText('฿ 1,002.80').first()).toBeVisible();
 });

@@ -30,6 +30,12 @@ import { posApi, posKeys } from '@/lib/pos/api';
 import type { CapturedPhoto } from '@/lib/pos/photoCapture';
 import { PAYMENT_METHODS, money, type Member, type PaymentMethod, type TenderInput } from '@/lib/pos/types';
 
+/**
+ * Tenders that settle to the bank instead of the drawer, so the shop has to match them against a
+ * statement later — worth offering to photograph the customer's confirmation.
+ */
+const SLIP_TENDERS: PaymentMethod[] = ['qr', 'transfer', 'gwallet', 'thaiplus', 'welfare'];
+
 interface Row {
   id: number;
   method: PaymentMethod;
@@ -144,8 +150,7 @@ export default function TenderDialog({
     retry: false,
   });
   const qrUnset = isApiError(qr.error) && qr.error.code === 'PROMPTPAY_NOT_SET';
-  // transfers and card payments land in the bank too, so a slip is worth keeping for those
-  const needsSlip = rows.some((r) => r.method === 'qr' || r.method === 'transfer');
+  const needsSlip = rows.some((r) => SLIP_TENDERS.includes(r.method));
 
   const update = (id: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const remove = (id: number) => setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.id !== id) : rs));

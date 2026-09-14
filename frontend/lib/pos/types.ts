@@ -3,8 +3,9 @@
  * Money and quantity values arrive as JSON strings (Go decimal); use `dec()`.
  */
 
-export type PaymentMethod = 'cash' | 'credit' | 'transfer' | 'card' | 'qr' | 'other';
-export const PAYMENT_METHODS: readonly PaymentMethod[] = ['cash', 'transfer', 'card', 'qr', 'credit'];
+export type PaymentMethod = 'cash' | 'credit' | 'transfer' | 'card' | 'qr' | 'gwallet' | 'thaiplus' | 'welfare' | 'other';
+/** Offered at the till, in the order a cashier reaches for them. `other` is never offered. */
+export const PAYMENT_METHODS: readonly PaymentMethod[] = ['cash', 'transfer', 'qr', 'gwallet', 'thaiplus', 'welfare', 'card', 'credit'];
 
 export type Money = string | number;
 
@@ -319,6 +320,9 @@ export interface DashboardResponse {
     transfer?: Money;
     qr?: Money;
     card?: Money;
+    gwallet?: Money;
+    thaiplus?: Money;
+    welfare?: Money;
     credit?: Money;
     avg_bill?: Money;
     cancelled?: number;

@@ -49,6 +49,9 @@ type PeriodSalesRow struct {
 	Transfer  decimal.Decimal `json:"transfer"`
 	Card      decimal.Decimal `json:"card"`
 	QR        decimal.Decimal `json:"qr"`
+	GWallet   decimal.Decimal `json:"gwallet"`
+	ThaiPlus  decimal.Decimal `json:"thaiplus"`
+	Welfare   decimal.Decimal `json:"welfare"`
 	Other     decimal.Decimal `json:"other"`
 	Cost      decimal.Decimal `json:"cost"`
 	Margin    decimal.Decimal `json:"margin"`
@@ -63,13 +66,19 @@ func (ReportRepo) PeriodSales(ctx context.Context, storeID uuid.UUID, from, to t
 		COALESCE(sum(x.gross) FILTER (WHERE x.sold),0)::text, COALESCE(sum(x.discount) FILTER (WHERE x.sold),0)::text, COALESCE(sum(x.net) FILTER (WHERE x.sold),0)::text,
 		count(*) FILTER (WHERE NOT x.sold),
 		COALESCE(sum(pm.cash) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.credit) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.transfer) FILTER (WHERE x.sold),0)::text,
-		COALESCE(sum(pm.card) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.qr) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.other) FILTER (WHERE x.sold),0)::text,
+		COALESCE(sum(pm.card) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.qr) FILTER (WHERE x.sold),0)::text,
+		COALESCE(sum(pm.gwallet) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.thaiplus) FILTER (WHERE x.sold),0)::text,
+		COALESCE(sum(pm.welfare) FILTER (WHERE x.sold),0)::text, COALESCE(sum(pm.other) FILTER (WHERE x.sold),0)::text,
 		COALESCE(sum(c.cost) FILTER (WHERE x.sold),0)::text
 		FROM (SELECT s.id, s.gross, s.discount, s.net, `+soldCond+` AS sold, `+expr+` AS p
 			FROM sales s WHERE s.store_id=$1 AND s.sold_at>=$2 AND s.sold_at<$3) x
 		LEFT JOIN LATERAL (SELECT COALESCE(sum(y.amount) FILTER (WHERE y.method='cash'),0) AS cash, COALESCE(sum(y.amount) FILTER (WHERE y.method='credit'),0) AS credit,
 			COALESCE(sum(y.amount) FILTER (WHERE y.method='transfer'),0) AS transfer, COALESCE(sum(y.amount) FILTER (WHERE y.method='card'),0) AS card,
-			COALESCE(sum(y.amount) FILTER (WHERE y.method='qr'),0) AS qr, COALESCE(sum(y.amount) FILTER (WHERE y.method='other'),0) AS other
+			COALESCE(sum(y.amount) FILTER (WHERE y.method='qr'),0) AS qr,
+			COALESCE(sum(y.amount) FILTER (WHERE y.method='gwallet'),0) AS gwallet,
+			COALESCE(sum(y.amount) FILTER (WHERE y.method='thaiplus'),0) AS thaiplus,
+			COALESCE(sum(y.amount) FILTER (WHERE y.method='welfare'),0) AS welfare,
+			COALESCE(sum(y.amount) FILTER (WHERE y.method='other'),0) AS other
 			FROM sale_payments y WHERE y.sale_id=x.id) pm ON true
 		LEFT JOIN LATERAL (SELECT COALESCE(sum(l.qty*l.cost_avg),0) AS cost FROM sale_lines l WHERE l.sale_id=x.id) c ON true
 		GROUP BY x.p ORDER BY x.p`, storeID, from, to)
@@ -80,12 +89,13 @@ func (ReportRepo) PeriodSales(ctx context.Context, storeID uuid.UUID, from, to t
 	out := []PeriodSalesRow{}
 	for rows.Next() {
 		var r PeriodSalesRow
-		var gross, disc, net, cash, credit, transfer, card, qr, other, cost string
-		if err := rows.Scan(&r.Period, &r.Bills, &gross, &disc, &net, &r.Cancelled, &cash, &credit, &transfer, &card, &qr, &other, &cost); err != nil {
+		var gross, disc, net, cash, credit, transfer, card, qr, gwallet, thaiplus, welfare, other, cost string
+		if err := rows.Scan(&r.Period, &r.Bills, &gross, &disc, &net, &r.Cancelled, &cash, &credit, &transfer, &card, &qr, &gwallet, &thaiplus, &welfare, &other, &cost); err != nil {
 			return nil, err
 		}
 		r.Gross, r.Discount, r.Net = dec(gross), dec(disc), dec(net)
 		r.Cash, r.Credit, r.Transfer, r.Card, r.QR, r.Other = dec(cash), dec(credit), dec(transfer), dec(card), dec(qr), dec(other)
+		r.GWallet, r.ThaiPlus, r.Welfare = dec(gwallet), dec(thaiplus), dec(welfare)
 		r.Cost = dec(cost).Round(2)
 		out = append(out, r)
 	}

@@ -16,12 +16,17 @@ const (
 	PayTransfer PaymentMethod = "transfer"
 	PayCard     PaymentMethod = "card"
 	PayQR       PaymentMethod = "qr"
+	// State welfare rails: the customer pays from เป๋าตัง, ไทยพลัส or a บัตรสวัสดิการแห่งรัฐ and the
+	// money settles to the shop's account, so like a transfer it never reaches the cash drawer.
+	PayGWallet  PaymentMethod = "gwallet"
+	PayThaiPlus PaymentMethod = "thaiplus"
+	PayWelfare  PaymentMethod = "welfare"
 	PayOther    PaymentMethod = "other"
 )
 
 func (m PaymentMethod) Valid() bool {
 	switch m {
-	case PayCash, PayCredit, PayTransfer, PayCard, PayQR, PayOther:
+	case PayCash, PayCredit, PayTransfer, PayCard, PayQR, PayGWallet, PayThaiPlus, PayWelfare, PayOther:
 		return true
 	}
 	return false

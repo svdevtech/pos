@@ -27,6 +27,9 @@ export interface PeriodSalesRow {
   transfer: Dec;
   card: Dec;
   qr: Dec;
+  gwallet: Dec;
+  thaiplus: Dec;
+  welfare: Dec;
   other: Dec;
   cost: Dec;
   margin: Dec;

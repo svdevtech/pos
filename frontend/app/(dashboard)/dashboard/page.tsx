@@ -2,7 +2,9 @@
 
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import BadgeIcon from '@mui/icons-material/Badge';
 import CancelIcon from '@mui/icons-material/Cancel';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -10,6 +12,7 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -180,6 +183,9 @@ export default function DashboardPage() {
                 transfer: m.transfer ?? 0,
                 qr: m.qr ?? 0,
                 card: m.card ?? 0,
+                gwallet: m.gwallet ?? 0,
+                thaiplus: m.thaiplus ?? 0,
+                welfare: m.welfare ?? 0,
                 credit: m.credit ?? 0,
                 avg_bill: bills > 0 ? money(dec(s?.net) / bills) : 0,
                 cancelled: s?.cancelled ?? 0,
@@ -275,16 +281,23 @@ export default function DashboardPage() {
           <Kpi icon={<AccountBalanceIcon />} label={t('todayTransfer')} value={dashboard.isPending ? '…' : formatMoney(today_?.transfer ?? 0, locale)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi
-            icon={<QrCode2Icon />}
-            label={t('todayQr')}
-            value={dashboard.isPending ? '…' : formatMoney(today_?.qr ?? 0, locale)}
-            // card sales are rare enough not to earn a tile of their own, but must not vanish
-            hint={dec(today_?.card) > 0 ? `${t('todayCard')} ${formatMoney(today_?.card ?? 0, locale)}` : undefined}
-          />
+          <Kpi icon={<QrCode2Icon />} label={t('todayQr')} value={dashboard.isPending ? '…' : formatMoney(today_?.qr ?? 0, locale)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
+        </Grid>
+        {/* the state welfare rails the shop used to tally by hand every evening */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<AccountBalanceWalletIcon />} label={t('todayGwallet')} value={dashboard.isPending ? '…' : formatMoney(today_?.gwallet ?? 0, locale)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<VolunteerActivismIcon />} label={t('todayThaiplus')} value={dashboard.isPending ? '…' : formatMoney(today_?.thaiplus ?? 0, locale)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<BadgeIcon />} label={t('todayWelfare')} value={dashboard.isPending ? '…' : formatMoney(today_?.welfare ?? 0, locale)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<CreditCardIcon />} label={t('todayCard')} value={dashboard.isPending ? '…' : formatMoney(today_?.card ?? 0, locale)} />
         </Grid>
       </Grid>
 

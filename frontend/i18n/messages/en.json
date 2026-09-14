@@ -171,7 +171,10 @@
     "viewLowStock": "View low stock",
     "todayTransfer": "Transfer today",
     "todayQr": "QR today",
-    "todayCard": "Card"
+    "todayCard": "Card today",
+    "todayGwallet": "G-Wallet today",
+    "todayThaiplus": "Thai Plus today",
+    "todayWelfare": "Welfare card today"
   },
   "pos": {
     "settings": "Settings",
@@ -310,7 +313,10 @@
       "transfer": "Transfer",
       "card": "Credit card",
       "qr": "QR PromptPay",
-      "other": "Other"
+      "other": "Other",
+      "gwallet": "G-Wallet",
+      "thaiplus": "Thai Plus",
+      "welfare": "State welfare card"
     },
     "noHeldBills": "No held bills",
     "noLastSale": "No recent sale",
@@ -476,7 +482,10 @@
       "transfer": "Transfer",
       "card": "Credit card",
       "qr": "QR PromptPay",
-      "other": "Other"
+      "other": "Other",
+      "gwallet": "G-Wallet",
+      "thaiplus": "Thai Plus",
+      "welfare": "State welfare card"
     },
     "rounding": "Rounding"
   },
@@ -1123,7 +1132,10 @@
       "expenses": "Expenses",
       "expensesTotal": "Total expenses",
       "month": "Month",
-      "year": "Year"
+      "year": "Year",
+      "gwallet": "G-Wallet",
+      "thaiplus": "Thai Plus",
+      "welfare": "Welfare card"
     },
     "printReport": "Print",
     "printedAt": "Printed {at} by {by}"
