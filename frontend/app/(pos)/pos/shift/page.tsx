@@ -20,7 +20,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useToast } from '@/components/Toast';
 import { GlassButton, GlassCard, GlassDialog, GlassInput, GlassTable, type GlassColumn } from '@/components/glass';
 import { paperWidthMm } from '@/components/pos/ReceiptPrint';
-import { drawerKickMode, kickDrawer } from '@/lib/print/drawerKick';
+import { drawerKickMode, kickDrawer, serialDrawerOptions } from '@/lib/print/drawerKick';
 import { printShiftSlip } from '@/lib/print/shiftSlip';
 import ShiftOpenDialog from '@/components/pos/ShiftOpenDialog';
 import { resolveLocale } from '@/i18n/config';
@@ -254,8 +254,8 @@ export default function ShiftPage() {
   const drawer = useMutation({
     mutationFn: () => posApi.drawer({ reason: drawerOp as DrawerReason, amount: Number(drawerAmount) || 0, note: drawerNote.trim() }),
     onSuccess: () => {
-      // money in or out means the drawer has to open: print the slip that opens it
-      kickDrawer(
+      // money in or out means the drawer has to open: print the slip that opens it, or pulse the box
+      void kickDrawer(
         drawerKickMode(settings.data),
         (drawerOp ?? 'no_sale') as DrawerReason,
         { title: drawerOp === 'paid_in' ? t('paidIn') : t('paidOut'), cashier: t('cashier'), amount: t('amount'), note: t('note') },
@@ -265,7 +265,8 @@ export default function ShiftPage() {
         paperWidthMm(settings.data ?? null),
         Number(drawerAmount) || 0,
         drawerNote.trim(),
-      );
+        serialDrawerOptions(settings.data),
+      ).catch(() => toast.error(t('drawerSerialFailed')));
       toast.success(drawerOp === 'paid_in' ? t('paidInDone') : t('paidOutDone'));
       setDrawerOp(null);
       setDrawerAmount('');

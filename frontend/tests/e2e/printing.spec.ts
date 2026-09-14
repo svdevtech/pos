@@ -41,7 +41,7 @@ const shift = {
   status: 'open',
 };
 
-async function mockApi(page: Page, opts: { drawerKick?: 'print' | 'off' } = {}) {
+async function mockApi(page: Page, opts: { drawerKick?: 'print' | 'serial' | 'off' } = {}) {
   const drawerCalls: unknown[] = [];
   await page.route('**/api/v1/**', (route) => json(route, { error: { code: 'NOT_FOUND', message: 'not found' } }, 404));
   await page.route('**/api/v1/store/settings', (route) => json(route, { require_shift: false, paper_width: 80, drawer_kick: opts.drawerKick ?? 'print' }));
@@ -181,4 +181,88 @@ test('a printed slip ends with blank paper so the cutter misses the last line', 
   const doc = await printed(page);
   // the blade is ~15 mm above the print head; without the feed the signature line is torn through
   expect(doc?.css).toMatch(/padding:2mm 2mm 15mm/);
+});
+
+/**
+ * A stand-in for Chrome's Web Serial, so the kicker-box path can be exercised without one plugged
+ * in. `granted` mirrors a till where the cashier has already picked the port.
+ */
+async function fakeSerial(page: Page, granted: boolean) {
+  await page.addInitScript((hasPort) => {
+    const log: { op: string; value?: unknown }[] = [];
+    (window as unknown as { __serial: unknown }).__serial = log;
+    const port = {
+      getInfo: () => ({ usbVendorId: 0x1a86, usbProductId: 0x7523 }),
+      open: (o: unknown) => {
+        log.push({ op: 'open', value: o });
+        return Promise.resolve();
+      },
+      close: () => {
+        log.push({ op: 'close' });
+        return Promise.resolve();
+      },
+      setSignals: (sig: unknown) => {
+        log.push({ op: 'signals', value: sig });
+        return Promise.resolve();
+      },
+      writable: {
+        getWriter: () => ({
+          write: (bytes: Uint8Array) => {
+            log.push({ op: 'write', value: Array.from(bytes) });
+            return Promise.resolve();
+          },
+          releaseLock: () => {},
+        }),
+      },
+    };
+    Object.defineProperty(navigator, 'serial', {
+      configurable: true,
+      value: {
+        getPorts: () => Promise.resolve(hasPort ? [port] : []),
+        requestPort: () => Promise.resolve(port),
+      },
+    });
+  }, granted);
+}
+
+test('a drawer on a serial kicker box is pulsed instead of printed at', async ({ page }) => {
+  const captured = await mockApi(page, { drawerKick: 'serial' });
+  await fakeSerial(page, true);
+  await page.goto('/pos');
+  await page.getByTestId('scan-input').waitFor();
+  await armPrintCapture(page);
+  await page.keyboard.press('F10');
+
+  await expect.poll(() => captured.drawerCalls.length, { timeout: 10_000 }).toBe(1);
+  // the pulse takes ~600 ms of deliberate dwell time; wait for the port to be handed back
+  await expect
+    .poll(async () => (await page.evaluate(() => (window as unknown as { __serial: { op: string }[] }).__serial)).some((o) => o.op === 'close'), { timeout: 15_000 })
+    .toBe(true);
+  const ops = await page.evaluate(() => (window as unknown as { __serial: { op: string; value?: unknown }[] }).__serial);
+  // the port is opened, fired, and handed back so the till is not left holding it
+  expect(ops[0]).toMatchObject({ op: 'open', value: { baudRate: 9600 } });
+  expect(ops.at(-1)).toMatchObject({ op: 'close' });
+  // "auto" means an unknown box gets all three triggers: ESC/POS bytes, then DTR, then RTS
+  expect(ops.filter((o) => o.op === 'write').map((o) => o.value)).toEqual([
+    [0x1b, 0x70, 0x00, 0x19, 0xfa],
+    [0x1b, 0x70, 0x01, 0x19, 0xfa],
+  ]);
+  const signals = ops.filter((o) => o.op === 'signals').map((o) => o.value);
+  expect(signals).toContainEqual({ dataTerminalReady: true });
+  expect(signals).toContainEqual({ requestToSend: true });
+  // and no paper is wasted on a slip that would not open anything
+  expect(await printed(page)).toBeNull();
+});
+
+test('a till that has not been given a port says so instead of failing silently', async ({ page }) => {
+  const captured = await mockApi(page, { drawerKick: 'serial' });
+  await fakeSerial(page, false);
+  await page.goto('/pos');
+  await page.getByTestId('scan-input').waitFor();
+  await page.keyboard.press('F10');
+
+  await expect.poll(() => captured.drawerCalls.length, { timeout: 10_000 }).toBe(1);
+  await expect(page.getByText(/ลิ้นชัก/).first()).toBeVisible({ timeout: 10_000 });
+  const ops = await page.evaluate(() => (window as unknown as { __serial: { op: string }[] }).__serial);
+  expect(ops.filter((o) => o.op === 'open')).toHaveLength(0);
 });

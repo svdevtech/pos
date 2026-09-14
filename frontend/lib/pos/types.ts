@@ -233,8 +233,11 @@ export interface StoreSettings {
   show_tax?: boolean;
   vat_type?: string;
   default_terminal?: string;
-  /** How "open the drawer" behaves: print a slip that pops it (default), or only record it. */
-  drawer_kick?: 'print' | 'off' | string;
+  /** How "open the drawer" behaves: print a slip that pops it (default), pulse a serial kicker box, or only record it. */
+  drawer_kick?: 'print' | 'serial' | 'off' | string;
+  /** Serial kicker box only: how the box is triggered, and the port speed it listens at. */
+  drawer_serial_trigger?: 'auto' | 'escpos' | 'dtr' | 'rts' | string;
+  drawer_serial_baud?: number | string;
   [key: string]: unknown;
 }
 

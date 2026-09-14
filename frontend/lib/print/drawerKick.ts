@@ -1,25 +1,39 @@
 /**
  * Opening the cash drawer without a sale.
  *
- * A browser cannot talk to a COM port, so it cannot pulse a drawer directly. What it can do is
- * print — and in every shop the drawer is wired to the receipt printer's DK socket, with the
- * printer driver set to open it on each job (see docs/INSTALL_ONSITE.md §4). So "open the drawer"
- * prints one short slip: the drawer pops, and the paper doubles as the record of who opened it.
+ * Most shops wire the drawer into the receipt printer's DK socket with the driver set to open it
+ * on each job (see docs/INSTALL_ONSITE.md §4), so "open the drawer" prints one short slip: the
+ * drawer pops, and the paper doubles as the record of who opened it.
  *
- * Shops without that wiring set ตั้งค่า → ใบเสร็จ → เปิดลิ้นชัก to "off" and nothing is printed.
+ * Printers without a DK socket drive the drawer through a USB-serial kicker box instead. Those
+ * shops pick "serial" and the browser pulses the box directly (lib/pos/serialDrawer.ts) — nothing
+ * is printed. Shops with no drawer at all pick "off" and only the event is recorded.
  */
 
 import type { Locale } from '@/i18n/config';
 import { receiptCss } from '@/components/pos/ReceiptPrint';
 import { formatDateTime, formatMoney } from '@/lib/format';
 import { printHtml } from '@/lib/print/printHtml';
+import { pulseDrawer, type SerialTrigger } from '@/lib/pos/serialDrawer';
 import type { DrawerReason, StoreInfo, StoreSettings } from '@/lib/pos/types';
 
-/** ตั้งค่า → ใบเสร็จ → เปิดลิ้นชัก: print a slip to kick the drawer, or only record the event. */
-export type DrawerKickMode = 'print' | 'off';
+/** ตั้งค่า → ใบเสร็จ → เปิดลิ้นชัก: print a slip, pulse the serial box, or only record the event. */
+export type DrawerKickMode = 'print' | 'serial' | 'off';
 
 export function drawerKickMode(settings: StoreSettings | null | undefined): DrawerKickMode {
-  return settings?.drawer_kick === 'off' ? 'off' : 'print';
+  const mode = settings?.drawer_kick;
+  if (mode === 'off') return 'off';
+  return mode === 'serial' ? 'serial' : 'print';
+}
+
+/** Port settings for the kicker box, defaulted for a shop that never touched them. */
+export function serialDrawerOptions(settings: StoreSettings | null | undefined): { trigger: SerialTrigger; baudRate: number } {
+  const t = settings?.drawer_serial_trigger;
+  const baud = Number(settings?.drawer_serial_baud);
+  return {
+    trigger: t === 'escpos' || t === 'dtr' || t === 'rts' ? t : 'auto',
+    baudRate: Number.isFinite(baud) && baud > 0 ? baud : 9600,
+  };
 }
 
 export interface DrawerSlipLabels {
@@ -57,7 +71,12 @@ export function buildDrawerSlipHtml(
 </div>`;
 }
 
-/** Prints the slip that opens the drawer. Does nothing when the shop has turned the mode off. */
+/**
+ * Opens the drawer the way this shop is wired, and resolves once it has been asked to.
+ *
+ * Only the serial path can fail in a way the cashier can act on (no port picked yet, box
+ * unplugged), so that is the only one that rejects; printing and "off" always resolve.
+ */
 export function kickDrawer(
   mode: DrawerKickMode,
   reason: DrawerReason,
@@ -68,7 +87,10 @@ export function kickDrawer(
   paperWidth: 58 | 80,
   amount = 0,
   note = '',
-): void {
-  if (mode === 'off') return;
+  serial?: { trigger: SerialTrigger; baudRate: number },
+): Promise<void> {
+  if (mode === 'off') return Promise.resolve();
+  if (mode === 'serial') return pulseDrawer(serial);
   printHtml(buildDrawerSlipHtml(reason, labels, store, cashier, locale, amount, note), receiptCss(paperWidth));
+  return Promise.resolve();
 }

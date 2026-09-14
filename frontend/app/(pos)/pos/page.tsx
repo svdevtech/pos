@@ -57,8 +57,9 @@ import {
   type CartState,
 } from '@/lib/pos/cart';
 import { paperWidthMm } from '@/components/pos/ReceiptPrint';
-import { drawerKickMode, kickDrawer } from '@/lib/print/drawerKick';
+import { drawerKickMode, kickDrawer, serialDrawerOptions } from '@/lib/print/drawerKick';
 import type { CapturedPhoto } from '@/lib/pos/photoCapture';
+import { pulseDrawer } from '@/lib/pos/serialDrawer';
 import { useWedgeScanner } from '@/lib/pos/useWedgeScanner';
 import { dec, type HeldBill, type Member, type ProductView, type Sale, type TenderInput } from '@/lib/pos/types';
 
@@ -313,6 +314,11 @@ export default function PosPage() {
       void qc.invalidateQueries({ queryKey: posKeys.shift });
       if (cart.held_bill_id) void qc.invalidateQueries({ queryKey: posKeys.held });
       toast.success(t('saleCompleted', { docNo: sale.doc_no }));
+      // a drawer on the printer opens by itself with the receipt; a kicker box has to be told, and
+      // only for a bill that took cash — a transfer or a credit sale never touches the till
+      if (drawerKickMode(settings.data) === 'serial' && (sale.payments ?? []).some((p) => p.method === 'cash')) {
+        void pulseDrawer(serialDrawerOptions(settings.data)).catch(() => toast.error(t('drawerSerialFailed')));
+      }
       // the receipt window only opens when this bill should be printed; otherwise the cashier
       // goes straight to the next customer and can still use "พิมพ์ซ้ำ" for the last bill
       if (print) setReceipt({ saleId: sale.id, change: dec(sale.change_amount), copy: false, autoPrint: true, afterSale: true });
@@ -335,8 +341,8 @@ export default function PosPage() {
   const openDrawer = useMutation({
     mutationFn: () => posApi.drawer({ reason: 'no_sale' }),
     onSuccess: () => {
-      // the drawer is wired to the printer, so a short slip is what actually pops it open
-      kickDrawer(
+      // a drawer on the printer is popped by printing a short slip; one on a kicker box is pulsed
+      void kickDrawer(
         drawerKickMode(settings.data),
         'no_sale',
         { title: t('openDrawer'), cashier: t('cashier') },
@@ -344,7 +350,10 @@ export default function PosPage() {
         session?.user?.display_name ?? '',
         locale,
         paperWidthMm(settings.data ?? null),
-      );
+        0,
+        '',
+        serialDrawerOptions(settings.data),
+      ).catch(() => toast.error(t('drawerSerialFailed')));
       toast.info(t('drawerOpened'));
     },
     onError: (e) => toast.error(errorMessage(e)),
