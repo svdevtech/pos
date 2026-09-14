@@ -122,6 +122,8 @@ export interface QuoteResponse {
   gross: Money;
   line_discount: Money;
   bill_discount: Money;
+  /** Cash rounding applied to the bill (ตั้งค่า → ใบเสร็จ → ปัดเศษเงินสด); already inside `net`. */
+  rounding?: Money;
   net: Money;
   lines: QuoteLine[];
 }
@@ -169,6 +171,8 @@ export interface Sale {
   discount: Money;
   bill_discount: Money;
   vat: Money;
+  /** Cash rounding applied to the bill; already inside `net`. */
+  rounding?: Money;
   net: Money;
   tendered: Money;
   change_amount: Money;
@@ -231,6 +235,10 @@ export interface StoreSettings {
   allow_price_edit?: boolean;
   allow_negative_stock?: boolean;
   show_tax?: boolean;
+  /** ตั้งค่า → ใบเสร็จ: print the uploaded logo, which language to print in, cash rounding step in ฿. */
+  show_logo?: boolean;
+  receipt_locale?: 'th' | 'en' | string;
+  rounding?: number | string;
   vat_type?: string;
   default_terminal?: string;
   /** How "open the drawer" behaves: print a slip that pops it (default), pulse a serial kicker box, or only record it. */

@@ -42,12 +42,47 @@ type Totals struct {
 	Gross        decimal.Decimal // Σ qty*price (before any discount)
 	LineDiscount decimal.Decimal // Σ manual + promo line discounts
 	BillDiscount decimal.Decimal
+	Rounding     decimal.Decimal // cash rounding applied to the bill; already folded into Net
 	Net          decimal.Decimal
+}
+
+// RoundStep reads ตั้งค่า → ใบเสร็จ → ปัดเศษเงินสด (legacy company_roundpoint). Anything that is not
+// a positive number means "do not round", which is how every store starts.
+func RoundStep(settings map[string]any) decimal.Decimal {
+	var step decimal.Decimal
+	switch v := settings["rounding"].(type) {
+	case float64:
+		step = decimal.NewFromFloat(v)
+	case int:
+		step = decimal.NewFromInt(int64(v))
+	case string:
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			return decimal.Zero
+		}
+		step = d
+	default:
+		return decimal.Zero
+	}
+	if step.IsPositive() {
+		return step
+	}
+	return decimal.Zero
+}
+
+// roundTo snaps an amount to the nearest multiple of step, halves away from zero (43.13 at a 0.25
+// step becomes 43.25). A zero step leaves the amount alone.
+func roundTo(amount, step decimal.Decimal) decimal.Decimal {
+	if !step.IsPositive() {
+		return amount
+	}
+	return domain.Money(amount.Div(step).Round(0).Mul(step))
 }
 
 // Compute prices the cart: applies product promotions per line and bill promotions on the subtotal,
 // then a manual bill discount (amount or percent). Returns totals and the (mutated) lines.
-func Compute(lines []CartLine, promos []domain.Promotion, billDiscount decimal.Decimal, billDiscountPct decimal.Decimal) (Totals, []CartLine) {
+// A zero roundStep (the default) leaves the net exactly as the lines add up.
+func Compute(lines []CartLine, promos []domain.Promotion, billDiscount decimal.Decimal, billDiscountPct decimal.Decimal, roundStep decimal.Decimal) (Totals, []CartLine) {
 	out := make([]CartLine, len(lines))
 	copy(out, lines)
 	var t Totals
@@ -127,6 +162,12 @@ func Compute(lines []CartLine, promos []domain.Promotion, billDiscount decimal.D
 		t.BillDiscount = sub
 	}
 	t.Net = domain.Money(sub.Sub(t.BillDiscount))
+	// rounding comes last, on the amount the customer actually pays, and is kept as its own figure
+	// so the receipt and the reports can show where the odd satang went
+	if rounded := roundTo(t.Net, roundStep); !rounded.Equal(t.Net) {
+		t.Rounding = domain.Money(rounded.Sub(t.Net))
+		t.Net = rounded
+	}
 	return t, out
 }
 

@@ -19,7 +19,7 @@ func TestComputeLegacyStyleBill(t *testing.T) {
 		{ProductID: pid, Qty: d("9"), UnitPrice: d("4"), Discount: d("6")},
 		{ProductID: uuid.New(), Qty: d("1"), UnitPrice: d("690")},
 	}
-	tot, out := Compute(lines, nil, decimal.Zero, decimal.Zero)
+	tot, out := Compute(lines, nil, decimal.Zero, decimal.Zero, decimal.Zero)
 	require.Equal(t, "726.00", tot.Gross.StringFixed(2))
 	require.Equal(t, "6.00", tot.LineDiscount.StringFixed(2))
 	require.Equal(t, "720.00", tot.Net.StringFixed(2))
@@ -31,7 +31,7 @@ func TestComputeFreeLineAndNegativeGuard(t *testing.T) {
 		{ProductID: uuid.New(), Qty: d("1"), UnitPrice: d("25.875"), IsFree: true},
 		{ProductID: uuid.New(), Qty: d("1"), UnitPrice: d("10"), Discount: d("50")},
 	}
-	tot, out := Compute(lines, nil, decimal.Zero, decimal.Zero)
+	tot, out := Compute(lines, nil, decimal.Zero, decimal.Zero, decimal.Zero)
 	require.True(t, out[0].LineTotal().IsZero())
 	require.True(t, out[1].LineTotal().IsZero())
 	require.Equal(t, "10.00", tot.Gross.StringFixed(2))
@@ -46,7 +46,7 @@ func TestComputePromotions(t *testing.T) {
 		{ID: uuid.New(), Scope: "bill", MinAmount: d("100"), DiscountType: "percent", DiscountValue: d("10")},
 	}
 	lines := []CartLine{{ProductID: pid, Qty: d("7"), UnitPrice: d("20")}} // 140 gross, 2 groups → -10
-	tot, out := Compute(lines, promos, decimal.Zero, decimal.Zero)
+	tot, out := Compute(lines, promos, decimal.Zero, decimal.Zero, decimal.Zero)
 	require.Equal(t, "10.00", out[0].PromoDisc.StringFixed(2))
 	require.Equal(t, promoID, *out[0].PromotionID)
 	require.Equal(t, "140.00", tot.Gross.StringFixed(2))
@@ -56,10 +56,10 @@ func TestComputePromotions(t *testing.T) {
 
 func TestComputeManualBillDiscountCapped(t *testing.T) {
 	lines := []CartLine{{ProductID: uuid.New(), Qty: d("1"), UnitPrice: d("50")}}
-	tot, _ := Compute(lines, nil, d("80"), decimal.Zero)
+	tot, _ := Compute(lines, nil, d("80"), decimal.Zero, decimal.Zero)
 	require.Equal(t, "50.00", tot.BillDiscount.StringFixed(2))
 	require.Equal(t, "0.00", tot.Net.StringFixed(2))
-	tot, _ = Compute(lines, nil, decimal.Zero, d("10"))
+	tot, _ = Compute(lines, nil, decimal.Zero, d("10"), decimal.Zero)
 	require.Equal(t, "45.00", tot.Net.StringFixed(2))
 }
 
@@ -101,4 +101,50 @@ func TestSettle(t *testing.T) {
 	// non-cash over net rejected
 	_, err = Settle(d("50"), []Tender{{Method: domain.PayCard, Amount: d("60")}})
 	require.Error(t, err)
+}
+
+func TestRoundStepReadsWhateverJSONBHandsBack(t *testing.T) {
+	require.True(t, RoundStep(nil).IsZero())
+	require.True(t, RoundStep(map[string]any{}).IsZero())
+	// a store that has never touched the setting, and one that turned it off again
+	require.True(t, RoundStep(map[string]any{"rounding": float64(0)}).IsZero())
+	require.True(t, RoundStep(map[string]any{"rounding": "not a number"}).IsZero())
+	require.True(t, RoundStep(map[string]any{"rounding": float64(-1)}).IsZero())
+	// JSONB gives numbers back as float64; the settings form has also written strings in the past
+	require.Equal(t, "0.25", RoundStep(map[string]any{"rounding": float64(0.25)}).String())
+	require.Equal(t, "1", RoundStep(map[string]any{"rounding": "1"}).String())
+}
+
+func TestComputeCashRounding(t *testing.T) {
+	// 3 × 4.33 = 12.99, the kind of total a shop cannot hand change for
+	lines := []CartLine{{ProductID: uuid.New(), Qty: d("3"), UnitPrice: d("4.33")}}
+
+	off, _ := Compute(lines, nil, decimal.Zero, decimal.Zero, decimal.Zero)
+	require.Equal(t, "12.99", off.Net.StringFixed(2))
+	require.Equal(t, "0.00", off.Rounding.StringFixed(2), "a store that never set a step must be untouched")
+
+	quarter, _ := Compute(lines, nil, decimal.Zero, decimal.Zero, d("0.25"))
+	require.Equal(t, "13.00", quarter.Net.StringFixed(2))
+	require.Equal(t, "0.01", quarter.Rounding.StringFixed(2))
+
+	baht, _ := Compute(lines, nil, decimal.Zero, decimal.Zero, d("1"))
+	require.Equal(t, "13.00", baht.Net.StringFixed(2))
+	require.Equal(t, "0.01", baht.Rounding.StringFixed(2))
+
+	// rounding down is just as possible, and the adjustment is then negative
+	down := []CartLine{{ProductID: uuid.New(), Qty: d("1"), UnitPrice: d("12.20")}}
+	half, _ := Compute(down, nil, decimal.Zero, decimal.Zero, d("0.5"))
+	require.Equal(t, "12.00", half.Net.StringFixed(2))
+	require.Equal(t, "-0.20", half.Rounding.StringFixed(2))
+
+	// gross and the discounts stay exactly what the lines say; only the payable total moves
+	require.Equal(t, off.Gross.StringFixed(2), quarter.Gross.StringFixed(2))
+	require.Equal(t, "12.99", quarter.Gross.Sub(quarter.LineDiscount).Sub(quarter.BillDiscount).StringFixed(2))
+	require.Equal(t, quarter.Net.StringFixed(2), quarter.Gross.Sub(quarter.LineDiscount).Sub(quarter.BillDiscount).Add(quarter.Rounding).StringFixed(2))
+
+	// an already-round total is left alone rather than being "rounded" to itself
+	exact := []CartLine{{ProductID: uuid.New(), Qty: d("2"), UnitPrice: d("20")}}
+	e, _ := Compute(exact, nil, decimal.Zero, decimal.Zero, d("1"))
+	require.Equal(t, "40.00", e.Net.StringFixed(2))
+	require.Equal(t, "0.00", e.Rounding.StringFixed(2))
 }

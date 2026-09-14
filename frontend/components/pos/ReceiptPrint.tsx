@@ -12,10 +12,12 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import { resolveLocale, type Locale } from '@/i18n/config';
+import { loadReceiptNamespace, lookup } from '@/i18n/receiptMessages';
 import { formatDateTime, formatMoney, formatQty } from '@/lib/format';
 import { printHtml } from '@/lib/print/printHtml';
 import { posApi, posKeys } from '@/lib/pos/api';
-import { dec, type PaymentMethod, type ReceiptData } from '@/lib/pos/types';
+import { loadReceiptLogo, logoWanted } from '@/lib/pos/receiptLogo';
+import { dec, type PaymentMethod, type ReceiptData, type StoreSettings } from '@/lib/pos/types';
 
 /** Auto-send to the printer as soon as the receipt dialog opens (checkbox in that dialog). */
 export const AUTO_PRINT_KEY = 'pos.autoPrint';
@@ -68,6 +70,7 @@ export interface ReceiptLabels {
   discount: string;
   gross: string;
   totalDiscount: string;
+  rounding: string;
   net: string;
   tendered: string;
   change: string;
@@ -81,8 +84,47 @@ export interface ReceiptLabels {
   copy: string;
 }
 
-export function useReceiptLabels(): ReceiptLabels {
+/**
+ * ตั้งค่า → ใบเสร็จ → ภาษาใบเสร็จ. Falls back to the screen language for a store that never set it,
+ * which is what every store did before the setting was wired up.
+ */
+export function receiptLocale(settings: StoreSettings | null | undefined, fallback: Locale): Locale {
+  const v = settings?.receipt_locale;
+  return v === 'th' || v === 'en' ? v : fallback;
+}
+
+/**
+ * Receipt wording in `target`, or in the screen language when that is what the shop wants.
+ *
+ * While the other language's chunk is still loading the screen language is used, so a print fired
+ * in the first moments after a cold load can carry it; the receipt query takes longer than the
+ * chunk in practice, and the dialog re-renders as soon as it lands.
+ */
+export function useReceiptLabels(target?: Locale): ReceiptLabels {
+  const active = resolveLocale(useLocale());
   const t = useTranslations('receipt');
+  const want = target ?? active;
+  const [foreign, setForeign] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (want === active) {
+      setForeign(null);
+      return;
+    }
+    let alive = true;
+    void loadReceiptNamespace(want).then((ns) => {
+      if (alive) setForeign(ns);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [want, active]);
+
+  const tr = useMemo(() => (foreign ? (k: string) => lookup(foreign, k) : (k: string) => t(k)), [foreign, t]);
+  return useReceiptLabelsFrom(tr);
+}
+
+function useReceiptLabelsFrom(t: (key: string) => string): ReceiptLabels {
   return useMemo(
     () => ({
       title: t('title'),
@@ -95,6 +137,7 @@ export function useReceiptLabels(): ReceiptLabels {
       discount: t('discount'),
       gross: t('gross'),
       totalDiscount: t('totalDiscount'),
+      rounding: t('rounding'),
       net: t('net'),
       tendered: t('tendered'),
       change: t('change'),
@@ -136,7 +179,7 @@ export function paperWidthMm(settings: ReceiptData['settings']): 58 | 80 {
 }
 
 /** Builds the receipt body HTML (no <html>/<body>); used both for preview and printing. */
-export function buildReceiptHtml(data: ReceiptData, labels: ReceiptLabels, locale: Locale, opts: { copy?: boolean } = {}): string {
+export function buildReceiptHtml(data: ReceiptData, labels: ReceiptLabels, locale: Locale, opts: { copy?: boolean; logo?: string | null } = {}): string {
   const { store, settings, sale } = data;
   const width = paperWidthMm(settings);
   const fm = (v: string | number | null | undefined) => formatMoney(v, locale).replace('฿ ', '');
@@ -145,6 +188,7 @@ export function buildReceiptHtml(data: ReceiptData, labels: ReceiptLabels, local
   const payments = sale.payments ?? [];
   const isCancelled = sale.status === 'cancelled';
   const lineDiscount = money2(dec(sale.discount) - dec(sale.bill_discount));
+  const rounding = money2(dec(sale.rounding));
 
   const row = (l: string, r: string, cls = '') => `<div class="r ${cls}"><span>${l}</span><span>${r}</span></div>`;
 
@@ -170,6 +214,7 @@ export function buildReceiptHtml(data: ReceiptData, labels: ReceiptLabels, local
   ${opts.copy ? `<div class="c copy">** ${esc(labels.copy)} **</div>` : ''}
   ${isCancelled ? `<div class="c cancelled">*** ${esc(labels.cancelled)} ***</div>` : ''}
   <div class="c hd">
+    ${opts.logo ? `<img class="lg" src="${opts.logo}" alt="">` : ''}
     <div class="sn">${esc(storeName)}</div>
     ${store?.address ? `<div>${nl2br(store.address)}</div>` : ''}
     ${store?.phone ? `<div>${esc(labels.tel)} ${esc(store.phone)}</div>` : ''}
@@ -188,6 +233,7 @@ export function buildReceiptHtml(data: ReceiptData, labels: ReceiptLabels, local
   ${row(esc(labels.gross), fm(sale.gross))}
   ${lineDiscount > 0 ? row(esc(labels.discount), `-${fm(lineDiscount)}`) : ''}
   ${dec(sale.bill_discount) > 0 ? row(esc(labels.totalDiscount), `-${fm(sale.bill_discount)}`) : ''}
+  ${rounding !== 0 ? row(esc(labels.rounding), `${rounding > 0 ? '+' : '-'}${fm(Math.abs(rounding))}`) : ''}
   ${row(`<b>${esc(labels.net)}</b>`, `<b>${fm(sale.net)}</b>`, 'net')}
   <hr>
   ${paymentsHtml}
@@ -216,6 +262,7 @@ export function receiptCss(width: 58 | 80): string {
   const fs = width === 58 ? '10.5px' : '12px';
   return `
 .rc{font-family:"Sarabun","Noto Sans Thai","Courier New",monospace;font-size:${fs};line-height:1.35;color:#000;background:#fff;width:${w};padding:2mm 2mm ${CUT_FEED};box-sizing:border-box;margin:0 auto}
+.rc .lg{display:block;margin:0 auto 2px;max-width:100%;max-height:18mm;image-rendering:pixelated}
 .rc .c{text-align:center}.rc .sn{font-weight:700;font-size:1.25em}.rc .t{font-weight:700;margin:2px 0}.rc .hh,.rc .ft{margin-top:2px;white-space:pre-wrap}
 .rc hr{border:0;border-top:1px dashed #000;margin:3px 0}
 .rc .r{display:flex;justify-content:space-between;gap:6px}.rc .r span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -230,7 +277,7 @@ export function receiptCss(width: 58 | 80): string {
 
 export { printHtml };
 
-export function printReceipt(data: ReceiptData, labels: ReceiptLabels, locale: Locale, opts: { copy?: boolean } = {}): void {
+export function printReceipt(data: ReceiptData, labels: ReceiptLabels, locale: Locale, opts: { copy?: boolean; logo?: string | null } = {}): void {
   const width = paperWidthMm(data.settings);
   printHtml(buildReceiptHtml(data, labels, locale, opts), receiptCss(width));
 }
@@ -251,9 +298,10 @@ interface DialogProps {
 /** Fetches `/sales/{id}/receipt`, previews it and prints. */
 export default function ReceiptDialog({ open, saleId, onClose, onNewSale, autoPrint = false, copy = false, change }: DialogProps) {
   const t = useTranslations('pos');
-  const labels = useReceiptLabels();
-  const locale = resolveLocale(useLocale());
+  const screenLocale = resolveLocale(useLocale());
   const [auto, setAuto] = useState(true);
+  // `ready` and not just a null src: a shop whose logo fails to load must still get its receipt
+  const [logo, setLogo] = useState<{ ready: boolean; src: string | null }>({ ready: false, src: null });
   const printedFor = useRef<string | null>(null);
 
   useEffect(() => setAuto(readAutoPrint()), []);
@@ -265,19 +313,43 @@ export default function ReceiptDialog({ open, saleId, onClose, onNewSale, autoPr
     staleTime: 60_000,
   });
 
-  const html = useMemo(() => (receipt.data ? buildReceiptHtml(receipt.data, labels, locale, { copy }) : ''), [receipt.data, labels, locale, copy]);
+  // the receipt carries the store's own language and logo choice, which need not match the screen
+  const locale = receiptLocale(receipt.data?.settings ?? null, screenLocale);
+  const labels = useReceiptLabels(locale);
+  const wantsLogo = logoWanted(receipt.data?.store ?? null, receipt.data?.settings ?? null);
+
+  useEffect(() => {
+    if (!wantsLogo) {
+      setLogo({ ready: true, src: null });
+      return;
+    }
+    let alive = true;
+    void loadReceiptLogo().then((src) => {
+      if (alive) setLogo({ ready: true, src });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [wantsLogo]);
+
+  const html = useMemo(
+    () => (receipt.data ? buildReceiptHtml(receipt.data, labels, locale, { copy, logo: logo.src }) : ''),
+    [receipt.data, labels, locale, copy, logo.src],
+  );
   const width = paperWidthMm(receipt.data?.settings ?? null);
 
   const doPrint = useCallback(() => {
-    if (receipt.data) printReceipt(receipt.data, labels, locale, { copy });
-  }, [receipt.data, labels, locale, copy]);
+    if (receipt.data) printReceipt(receipt.data, labels, locale, { copy, logo: logo.src });
+  }, [receipt.data, labels, locale, copy, logo.src]);
 
   useEffect(() => {
     if (!open || !receipt.data || !autoPrint || !auto) return;
+    // hold the first print until the logo has been resolved, otherwise bill one of the day loses it
+    if (!logo.ready) return;
     if (printedFor.current === receipt.data.sale.id) return;
     printedFor.current = receipt.data.sale.id;
     doPrint();
-  }, [open, receipt.data, autoPrint, auto, doPrint]);
+  }, [open, receipt.data, autoPrint, auto, doPrint, logo.ready]);
 
   useEffect(() => {
     if (!open) printedFor.current = null;

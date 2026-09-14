@@ -443,7 +443,8 @@
     "openingFloat": "Opening float",
     "cashIn": "Paid in",
     "cashOut": "Paid out",
-    "drawerSerialFailed": "Could not open the cash drawer. Check the kicker box cable, or pick the port again under Settings → Receipt → Cash drawer."
+    "drawerSerialFailed": "Could not open the cash drawer. Check the kicker box cable, or pick the port again under Settings → Receipt → Cash drawer.",
+    "rounding": "Rounding"
   },
   "receipt": {
     "title": "Receipt",
@@ -473,7 +474,8 @@
       "card": "Credit card",
       "qr": "QR PromptPay",
       "other": "Other"
-    }
+    },
+    "rounding": "Rounding"
   },
   "datagrid": {
     "rowsPerPage": "Rows per page",

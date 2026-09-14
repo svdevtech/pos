@@ -17,7 +17,7 @@ import (
 type SaleRepo struct{}
 
 const saleCols = `s.id, s.store_id, s.doc_no, s.legacy_dup_seq, s.sold_at, s.cashier_id, COALESCE(s.cashier_name,''), s.member_id,
-	COALESCE(m.member_code,''), COALESCE(m.name,''), s.shift_id, s.gross::text, s.discount::text, s.bill_discount::text, s.vat::text, s.net::text,
+	COALESCE(m.member_code,''), COALESCE(m.name,''), s.shift_id, s.gross::text, s.discount::text, s.bill_discount::text, s.vat::text, s.rounding::text, s.net::text,
 	s.tendered::text, s.change_amount::text, s.status::text, s.cancelled_by, COALESCE(s.cancelled_by_name,''), s.cancelled_at, COALESCE(s.cancel_reason,''),
 	s.ar_status::text, s.ar_total::text, s.ar_paid::text, s.ar_balance::text, COALESCE(s.note,''), s.legacy_tender, COALESCE(s.legacy_id,''), s.created_at`
 
@@ -25,13 +25,14 @@ const saleFrom = ` FROM sales s LEFT JOIN members m ON m.id = s.member_id `
 
 func scanSale(row pgx.Row) (*domain.Sale, error) {
 	var s domain.Sale
-	var gross, disc, bdisc, vat, net, tend, chg, status, arStatus, arTotal, arPaid, arBal string
+	var gross, disc, bdisc, vat, rnd, net, tend, chg, status, arStatus, arTotal, arPaid, arBal string
 	if err := row.Scan(&s.ID, &s.StoreID, &s.DocNo, &s.LegacyDupSeq, &s.SoldAt, &s.CashierID, &s.CashierName, &s.MemberID,
-		&s.MemberCode, &s.MemberName, &s.ShiftID, &gross, &disc, &bdisc, &vat, &net, &tend, &chg, &status, &s.CancelledBy, &s.CancelledByName,
+		&s.MemberCode, &s.MemberName, &s.ShiftID, &gross, &disc, &bdisc, &vat, &rnd, &net, &tend, &chg, &status, &s.CancelledBy, &s.CancelledByName,
 		&s.CancelledAt, &s.CancelReason, &arStatus, &arTotal, &arPaid, &arBal, &s.Note, &s.LegacyTender, &s.LegacyID, &s.CreatedAt); err != nil {
 		return nil, err
 	}
 	s.Gross, s.Discount, s.BillDiscount, s.VAT, s.Net = dec(gross), dec(disc), dec(bdisc), dec(vat), dec(net)
+	s.Rounding = dec(rnd)
 	s.Tendered, s.Change = dec(tend), dec(chg)
 	s.Status, s.ARStatus = domain.SaleStatus(status), domain.ARStatus(arStatus)
 	s.ARTotal, s.ARPaid, s.ARBalance = dec(arTotal), dec(arPaid), dec(arBal)
@@ -39,11 +40,11 @@ func scanSale(row pgx.Row) (*domain.Sale, error) {
 }
 
 func (SaleRepo) Insert(ctx context.Context, s *domain.Sale) error {
-	return Q(ctx).QueryRow(ctx, `INSERT INTO sales (store_id, doc_no, legacy_dup_seq, sold_at, cashier_id, cashier_name, member_id, shift_id, gross, discount, bill_discount, vat, net,
+	return Q(ctx).QueryRow(ctx, `INSERT INTO sales (store_id, doc_no, legacy_dup_seq, sold_at, cashier_id, cashier_name, member_id, shift_id, gross, discount, bill_discount, vat, rounding, net,
 		tendered, change_amount, status, ar_status, ar_total, ar_paid, ar_balance, note, legacy_tender, legacy_id)
-		VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::sale_status,$17::ar_status,$18,$19,$20,NULLIF($21,''),$22,NULLIF($23,''))
+		VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::sale_status,$18::ar_status,$19,$20,$21,NULLIF($22,''),$23,NULLIF($24,''))
 		RETURNING id, created_at`,
-		s.StoreID, s.DocNo, s.LegacyDupSeq, s.SoldAt, s.CashierID, s.CashierName, s.MemberID, s.ShiftID, s.Gross, s.Discount, s.BillDiscount, s.VAT, s.Net,
+		s.StoreID, s.DocNo, s.LegacyDupSeq, s.SoldAt, s.CashierID, s.CashierName, s.MemberID, s.ShiftID, s.Gross, s.Discount, s.BillDiscount, s.VAT, s.Rounding, s.Net,
 		s.Tendered, s.Change, string(s.Status), string(s.ARStatus), s.ARTotal, s.ARPaid, s.ARBalance, s.Note, s.LegacyTender, s.LegacyID).Scan(&s.ID, &s.CreatedAt)
 }
 

@@ -20,6 +20,7 @@ import { GlassButton, GlassCard, GlassInput } from '@/components/glass';
 import { locales, type Locale } from '@/i18n/config';
 import { api, isApiError } from '@/lib/api/client';
 import { useApiErrorMessage } from '@/lib/api/errors';
+import { forgetReceiptLogo } from '@/lib/pos/receiptLogo';
 import { MUTATING_ROLES, loadSession, updateSession, type SessionStore } from '@/lib/auth/session';
 
 interface StoreValues {
@@ -88,6 +89,8 @@ function LogoPanel() {
     onSuccess: () => {
       setToast(t('logoUploaded'));
       void queryClient.invalidateQueries({ queryKey: LOGO_KEY });
+      // the till keeps the print-ready copy in memory; drop it so the next receipt uses the new one
+      forgetReceiptLogo();
     },
     onError: (err) => setError(errorMessage(err)),
   });

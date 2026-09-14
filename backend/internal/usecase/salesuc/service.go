@@ -88,7 +88,8 @@ func (s *Service) Quote(ctx context.Context, storeID uuid.UUID, in CreateSaleInp
 		if err != nil {
 			return err
 		}
-		tot, lines = Compute(lines, promos, in.BillDiscount, in.BillDiscountPct)
+		settings, _ := s.stores.GetSettings(ctx, storeID)
+		tot, lines = Compute(lines, promos, in.BillDiscount, in.BillDiscountPct, RoundStep(settings))
 		return nil
 	})
 	return &tot, lines, err
@@ -159,7 +160,8 @@ func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 		if err != nil {
 			return err
 		}
-		tot, lines := Compute(lines, promos, in.BillDiscount, in.BillDiscountPct)
+		settings, _ := s.stores.GetSettings(ctx, storeID)
+		tot, lines := Compute(lines, promos, in.BillDiscount, in.BillDiscountPct, RoundStep(settings))
 		settle, err := Settle(tot.Net, in.Payments)
 		if err != nil {
 			return err
@@ -167,7 +169,6 @@ func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 		if settle.Credit.IsPositive() && (member == nil || member.IsWalkin) {
 			return domain.ErrSaleCreditNeedsMember
 		}
-		settings, _ := s.stores.GetSettings(ctx, storeID)
 		requireShift, _ := settings["require_shift"].(bool)
 		allowNegative := true
 		if v, ok := settings["allow_negative_stock"].(bool); ok {
@@ -187,7 +188,7 @@ func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 		}
 		sale := &domain.Sale{
 			StoreID: storeID, DocNo: docNo, SoldAt: soldAt, CashierID: actor.idPtr(), CashierName: actor.Name,
-			Gross: tot.Gross, Discount: tot.LineDiscount.Add(tot.BillDiscount), BillDiscount: tot.BillDiscount, Net: tot.Net,
+			Gross: tot.Gross, Discount: tot.LineDiscount.Add(tot.BillDiscount), BillDiscount: tot.BillDiscount, Rounding: tot.Rounding, Net: tot.Net,
 			Tendered: settle.Tendered, Change: settle.Change, Status: domain.SaleCompleted, ARStatus: domain.ARNone, Note: in.Note,
 		}
 		if member != nil {

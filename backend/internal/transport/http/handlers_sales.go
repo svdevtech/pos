@@ -115,7 +115,7 @@ func (s *Server) mountSales(r chi.Router) {
 			for i, l := range lines {
 				out[i] = ql{l.ProductID, l.Description, l.Qty, l.UnitPrice, l.Discount, l.PromoDisc, l.LineTotal(), l.IsFree}
 			}
-			ok(w, map[string]any{"gross": tot.Gross, "line_discount": tot.LineDiscount, "bill_discount": tot.BillDiscount, "net": tot.Net, "lines": out})
+			ok(w, map[string]any{"gross": tot.Gross, "line_discount": tot.LineDiscount, "bill_discount": tot.BillDiscount, "rounding": tot.Rounding, "net": tot.Net, "lines": out})
 		})
 		r.With(requireRole(rolesSell...)).Post("/", func(w http.ResponseWriter, r *http.Request) {
 			var in salesuc.CreateSaleInput

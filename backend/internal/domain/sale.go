@@ -46,21 +46,23 @@ const (
 )
 
 type Sale struct {
-	ID              uuid.UUID       `json:"id"`
-	StoreID         uuid.UUID       `json:"store_id"`
-	DocNo           string          `json:"doc_no"`
-	LegacyDupSeq    int16           `json:"legacy_dup_seq,omitempty"`
-	SoldAt          time.Time       `json:"sold_at"`
-	CashierID       *uuid.UUID      `json:"cashier_id,omitempty"`
-	CashierName     string          `json:"cashier_name,omitempty"`
-	MemberID        *uuid.UUID      `json:"member_id,omitempty"`
-	MemberCode      string          `json:"member_code,omitempty"`
-	MemberName      string          `json:"member_name,omitempty"`
-	ShiftID         *uuid.UUID      `json:"shift_id,omitempty"`
-	Gross           decimal.Decimal `json:"gross"`
-	Discount        decimal.Decimal `json:"discount"`
-	BillDiscount    decimal.Decimal `json:"bill_discount"`
-	VAT             decimal.Decimal `json:"vat"`
+	ID           uuid.UUID       `json:"id"`
+	StoreID      uuid.UUID       `json:"store_id"`
+	DocNo        string          `json:"doc_no"`
+	LegacyDupSeq int16           `json:"legacy_dup_seq,omitempty"`
+	SoldAt       time.Time       `json:"sold_at"`
+	CashierID    *uuid.UUID      `json:"cashier_id,omitempty"`
+	CashierName  string          `json:"cashier_name,omitempty"`
+	MemberID     *uuid.UUID      `json:"member_id,omitempty"`
+	MemberCode   string          `json:"member_code,omitempty"`
+	MemberName   string          `json:"member_name,omitempty"`
+	ShiftID      *uuid.UUID      `json:"shift_id,omitempty"`
+	Gross        decimal.Decimal `json:"gross"`
+	Discount     decimal.Decimal `json:"discount"`
+	BillDiscount decimal.Decimal `json:"bill_discount"`
+	VAT          decimal.Decimal `json:"vat"`
+	// Rounding is what cash rounding added to (or took off) the bill; net already includes it.
+	Rounding        decimal.Decimal `json:"rounding"`
 	Net             decimal.Decimal `json:"net"`
 	Tendered        decimal.Decimal `json:"tendered"`
 	Change          decimal.Decimal `json:"change_amount"`

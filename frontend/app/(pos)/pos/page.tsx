@@ -175,13 +175,14 @@ export default function PosPage() {
 
   const localGross = cartGross(cart.lines);
   const totals = useMemo(() => {
-    if (cart.lines.length === 0) return { gross: 0, lineDiscount: 0, promo: 0, billDiscount: 0, net: 0, fromServer: true };
+    if (cart.lines.length === 0) return { gross: 0, lineDiscount: 0, promo: 0, billDiscount: 0, rounding: 0, net: 0, fromServer: true };
     const q = quote.data;
     if (!q) {
       const manual = cart.lines.reduce((s, l) => (l.is_free ? s : s + l.discount), 0);
       const sub = Math.max(0, localGross - manual);
       const bill = Math.min(sub, cart.bill_discount + (sub * cart.bill_discount_pct) / 100);
-      return { gross: localGross, lineDiscount: manual, promo: 0, billDiscount: bill, net: Math.max(0, sub - bill), fromServer: false };
+      // rounding is the server's call (it holds the store setting), so the offline estimate skips it
+      return { gross: localGross, lineDiscount: manual, promo: 0, billDiscount: bill, rounding: 0, net: Math.max(0, sub - bill), fromServer: false };
     }
     const promo = (q.lines ?? []).reduce((s, l) => s + dec(l.promo_discount), 0);
     return {
@@ -189,6 +190,7 @@ export default function PosPage() {
       lineDiscount: dec(q.line_discount) - promo,
       promo,
       billDiscount: dec(q.bill_discount),
+      rounding: dec(q.rounding),
       net: dec(q.net),
       fromServer: true,
     };
@@ -488,6 +490,9 @@ export default function PosPage() {
       {totals.lineDiscount > 0 && <TotalRow label={t('lineDiscount')} value={`-${formatMoney(totals.lineDiscount, locale)}`} />}
       {totals.promo > 0 && <TotalRow label={t('promoDiscount')} value={`-${formatMoney(totals.promo, locale)}`} color="secondary.main" />}
       {totals.billDiscount > 0 && <TotalRow label={t('billDiscount')} value={`-${formatMoney(totals.billDiscount, locale)}`} />}
+      {totals.rounding !== 0 && (
+        <TotalRow label={t('rounding')} value={`${totals.rounding > 0 ? '+' : ''}${formatMoney(totals.rounding, locale)}`} />
+      )}
       <Divider sx={{ my: 0.5 }} />
       <TotalRow label={t('net')} value={formatMoney(totals.net, locale)} strong />
       {!totals.fromServer && cart.lines.length > 0 && (
