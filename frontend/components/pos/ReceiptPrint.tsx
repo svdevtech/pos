@@ -204,11 +204,18 @@ function money2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * The cutter sits roughly 15 mm above the print head, so a slip that ends at its last line comes
+ * off the roll with that line torn through. Every slip therefore ends with blank paper to feed
+ * past the blade.
+ */
+const CUT_FEED = '15mm';
+
 export function receiptCss(width: 58 | 80): string {
   const w = width === 58 ? '48mm' : '72mm';
   const fs = width === 58 ? '10.5px' : '12px';
   return `
-.rc{font-family:"Sarabun","Noto Sans Thai","Courier New",monospace;font-size:${fs};line-height:1.35;color:#000;background:#fff;width:${w};padding:2mm;box-sizing:border-box;margin:0 auto}
+.rc{font-family:"Sarabun","Noto Sans Thai","Courier New",monospace;font-size:${fs};line-height:1.35;color:#000;background:#fff;width:${w};padding:2mm 2mm ${CUT_FEED};box-sizing:border-box;margin:0 auto}
 .rc .c{text-align:center}.rc .sn{font-weight:700;font-size:1.25em}.rc .t{font-weight:700;margin:2px 0}.rc .hh,.rc .ft{margin-top:2px;white-space:pre-wrap}
 .rc hr{border:0;border-top:1px dashed #000;margin:3px 0}
 .rc .r{display:flex;justify-content:space-between;gap:6px}.rc .r span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}

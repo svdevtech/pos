@@ -170,3 +170,15 @@ test('a shop with no drawer wired to the printer prints nothing', async ({ page 
   await page.waitForTimeout(1500);
   expect(await printed(page)).toBeNull();
 });
+
+test('a printed slip ends with blank paper so the cutter misses the last line', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/pos/shift');
+  await armPrintCapture(page);
+  await page.getByTestId('print-shift-slip').first().click();
+
+  await expect.poll(async () => (await printed(page))?.css ?? '', { timeout: 15_000 }).not.toBe('');
+  const doc = await printed(page);
+  // the blade is ~15 mm above the print head; without the feed the signature line is torn through
+  expect(doc?.css).toMatch(/padding:2mm 2mm 15mm/);
+});
