@@ -27,11 +27,11 @@ import { resolveLocale } from '@/i18n/config';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import { formatDateTime, formatMoney } from '@/lib/format';
 import { posApi, posKeys } from '@/lib/pos/api';
-import { dec, money, shiftExpectedCash, type DrawerReason, type Shift, type ShiftReport } from '@/lib/pos/types';
+import { dec, money, shiftExpectedCash, type DrawerReason, type Money, type Shift, type ShiftReport } from '@/lib/pos/types';
 
-function Stat({ label, value, color }: { label: ReactNode; value: ReactNode; color?: string }) {
+function Stat({ label, value, color, 'data-testid': testId }: { label: ReactNode; value: ReactNode; color?: string; 'data-testid'?: string }) {
   return (
-    <Box>
+    <Box data-testid={testId}>
       <Typography variant="caption" color="text.secondary" display="block">
         {label}
       </Typography>
@@ -40,6 +40,17 @@ function Stat({ label, value, color }: { label: ReactNode; value: ReactNode; col
       </Typography>
     </Box>
   );
+}
+
+/** Tenders in the order a cashier counts them, unknown ones last, so the card never reshuffles. */
+const METHOD_ORDER = ['cash', 'transfer', 'qr', 'card', 'credit', 'other'];
+
+function sortMethods(byMethod: Record<string, Money> | null | undefined): [string, Money][] {
+  const at = (m: string) => {
+    const i = METHOD_ORDER.indexOf(m);
+    return i === -1 ? METHOD_ORDER.length : i;
+  };
+  return Object.entries(byMethod ?? {}).sort(([a], [b]) => at(a) - at(b) || a.localeCompare(b));
 }
 
 function VarianceText({ value }: { value: number }) {
@@ -224,6 +235,16 @@ export default function ShiftPage() {
   const detail = useQuery({ queryKey: posKeys.shiftDetail(detailId ?? ''), queryFn: () => posApi.shiftReport(detailId as string), enabled: Boolean(detailId) });
 
   const current = shift.data ?? null;
+  // the cash figures on the shift itself say nothing about transfers, QR or credit, and a cashier
+  // reconciling mid-shift wants the whole tender split — so pull the same summary the slip prints
+  const currentReport = useQuery({
+    queryKey: posKeys.shiftDetail(current?.id ?? ''),
+    queryFn: () => posApi.shiftReport(current?.id as string),
+    enabled: Boolean(current?.id),
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+  });
+  const currentSummary = currentReport.data?.summary ?? null;
   const expected = current ? shiftExpectedCash(current) : 0;
   const counted = Number(countedText);
   const countedValid = countedText !== '' && Number.isFinite(counted) && counted >= 0;
@@ -369,6 +390,27 @@ export default function ShiftPage() {
                   <Stat label={t('expectedCash')} value={formatMoney(expected, locale)} />
                 </Grid>
               </Grid>
+              {currentSummary && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    {t('byMethod')}
+                  </Typography>
+                  <Grid container spacing={2} data-testid="shift-by-method">
+                    <Grid item xs={6} sm={4}>
+                      <Stat label={t('bills')} value={currentSummary.bills} />
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Stat label={t('net')} value={formatMoney(currentSummary.net, locale)} />
+                    </Grid>
+                    {sortMethods(currentSummary.by_method).map(([m, v]) => (
+                      <Grid item xs={6} sm={4} key={m}>
+                        <Stat label={t.has(`methods.${m}`) ? t(`methods.${m}`) : m} value={formatMoney(v, locale)} data-testid={`tender-${m}`} />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </>
+              )}
               <Divider sx={{ my: 2 }} />
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <GlassButton variant="outlined" color="success" startIcon={<LoginIcon />} onClick={() => setDrawerOp('paid_in')}>

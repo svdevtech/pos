@@ -48,7 +48,7 @@ async function mockApi(page: Page, opts: { drawerKick?: 'print' | 'serial' | 'of
   await page.route('**/api/v1/store', (route) => json(route, { id: STORE_ID, code: 'S1', name: 'ร้านทดสอบ', address: 'หมู่ 1', phone: '084-000-0000' }));
   await page.route('**/api/v1/shifts/current', (route) => json(route, { shift }));
   await page.route(`**/api/v1/shifts/${SHIFT_ID}`, (route) =>
-    json(route, { shift, summary: { bills: 4, gross: '124.00', discount: '0.00', net: '124.00', cancelled: 0, by_method: { cash: '114.00', qr: '10.00' } } }),
+    json(route, { shift, summary: { bills: 4, gross: '374.00', discount: '0.00', net: '374.00', cancelled: 0, by_method: { qr: '10.00', transfer: '250.00', cash: '114.00' } } }),
   );
   await page.route('**/api/v1/shifts?*', (route) => json(route, { items: [shift], total: 1, page: 1, page_size: 20 }));
   await page.route('**/api/v1/held-bills', (route) => json(route, []));
@@ -265,4 +265,18 @@ test('a till that has not been given a port says so instead of failing silently'
   await expect(page.getByText(/ลิ้นชัก/).first()).toBeVisible({ timeout: 10_000 });
   const ops = await page.evaluate(() => (window as unknown as { __serial: { op: string }[] }).__serial);
   expect(ops.filter((o) => o.op === 'open')).toHaveLength(0);
+});
+
+test('the open shift shows what came in by transfer and QR, not just the cash', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/pos/shift');
+  const split = page.getByTestId('shift-by-method');
+  await split.waitFor({ timeout: 15_000 });
+  // cash first, then the tenders that never reach the drawer — the cashier reads them in that order
+  await expect(split.getByTestId('tender-cash')).toContainText('114.00');
+  await expect(split.getByTestId('tender-transfer')).toContainText('250.00');
+  await expect(split.getByTestId('tender-qr')).toContainText('10.00');
+  await expect(split).toContainText('เงินโอน');
+  // the drawer still only counts cash, so the expected-cash figure must not move
+  await expect(page.getByText('1,164.00').first()).toBeVisible();
 });
