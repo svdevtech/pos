@@ -1,0 +1,1407 @@
+{
+    "format":  "pos-legacy-dump/1",
+    "extracted_at":  "2026-09-14T18:49:25.2637513+07:00",
+    "source_path":  "D:\\workspace\\pos\\legacy-bbr\\database.mdb",
+    "source_size":  235900928,
+    "source_sha256":  "4304f852a7aab30b1331628e72c3fce4a7dab850a9760ddad8966b83b2b74408",
+    "timezone":  "Asia/Bangkok",
+    "tables":  [
+                   {
+                       "name":  "company",
+                       "file":  "company.jsonl",
+                       "rows":  1,
+                       "source_rows":  1,
+                       "skipped_keyless":  0,
+                       "order_by":  "company_id",
+                       "columns":  [
+                                       {
+                                           "name":  "company_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "company_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_add",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_tel",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_fax",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_textbuttom",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_closeofday",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_logo",
+                                           "type":  "LONGBINARY"
+                                       },
+                                       {
+                                           "name":  "company_typesoftware",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_typepaper",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_showtax",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_editprice",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_vattype",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_roundpoint",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_windowsversion",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_cashcomport",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_displaycomport",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "company_displaymaxchartinline",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "f94e7d11f5221bb906fe480e22e1cb6e33636a282e3ba656e21febbda49a7158"
+                   },
+                   {
+                       "name":  "usersys",
+                       "file":  "usersys.jsonl",
+                       "rows":  10,
+                       "source_rows":  10,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "user_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_password",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_address",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_phone",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_level",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "user_status",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "10b3bd4948cb2a1c6eb6a8b96ce33c5284db9025dcc4734c7c1a86dca969b377"
+                   },
+                   {
+                       "name":  "brand",
+                       "file":  "brand.jsonl",
+                       "rows":  32,
+                       "source_rows":  32,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "brand_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "brand_name",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "9f8b1a6b3fa23c6b9aa24d7a7fd3e622eeffe79aa0ad12785d071b905741fda7"
+                   },
+                   {
+                       "name":  "product",
+                       "file":  "product.jsonl",
+                       "rows":  7893,
+                       "source_rows":  7893,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "pro_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "brand_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_model",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_color",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_costprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_costpriceavg",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buyprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel1",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel2",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel3",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel4",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_stock",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_barcode",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_minlevel1",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pro_minlevel2",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pro_serialstatus",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "68dc58bbc54ff3d753c21ea2d438ba237b5ab7a7b860f8c31660cf3e3e25955a"
+                   },
+                   {
+                       "name":  "delproducts",
+                       "file":  "delproducts.jsonl",
+                       "rows":  424,
+                       "source_rows":  424,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "pro_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "brand_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_model",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_color",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_costprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_costpriceavg",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buyprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel1",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel2",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel3",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_buypricelevel4",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_stock",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pro_barcode",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_minlevel1",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pro_minlevel2",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pro_serialstatus",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "2facca9b6a2a7b16099097e66396e58170cd60191f2a29bdf9c1545d6fef3a9d"
+                   },
+                   {
+                       "name":  "supplier",
+                       "file":  "supplier.jsonl",
+                       "rows":  48,
+                       "source_rows":  48,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "sup_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_address",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_phone",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_fax",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_email",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "4eb23e931c43872251d44c7e733adf4d72791dd6a47e5ca7f850ea55a7f2b258"
+                   },
+                   {
+                       "name":  "customer",
+                       "file":  "customer.jsonl",
+                       "rows":  1085,
+                       "source_rows":  1085,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "cust_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_address",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_phone",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_fax",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_email",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_pricelevel",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_hunmoney",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "cust_datestart",
+                                           "type":  "DATETIME"
+                                       }
+                                   ],
+                       "sha256":  "b1c5dc907f2f3edec50d1c304f82b5820c510c0f59a680bc96ec5ff665489edf"
+                   },
+                   {
+                       "name":  "typepayments",
+                       "file":  "typepayments.jsonl",
+                       "rows":  4,
+                       "source_rows":  4,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "buy_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_typename",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "6b72c457115dd89e04a0d9d28bd4f100e62a9779358abda723bfa98fdd4e0cee"
+                   },
+                   {
+                       "name":  "buymain",
+                       "file":  "buymain.jsonl",
+                       "rows":  466277,
+                       "source_rows":  466277,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "buy_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "buy_pricesum",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_pricevat",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_pricetotal",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_pricediscount",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_buytotal",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_debtorstatus",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_debtortotal",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_debtorpaid",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_debtorpayable",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "user_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_status",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "cust_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_cancel_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_cancel_time",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_moneyinput",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_moneyreturn",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_timesale",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_closeofday",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_closeofdayuser",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_closeofdaytime",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_comment",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "b8cb953d92d3f81e17c89cf2b1bbb8b7711dccd57d90f86fba79a4711ef570f0"
+                   },
+                   {
+                       "name":  "buydetails",
+                       "file":  "buydetails.jsonl",
+                       "rows":  1114139,
+                       "source_rows":  1114139,
+                       "skipped_keyless":  0,
+                       "order_by":  "ID",
+                       "columns":  [
+                                       {
+                                           "name":  "ID",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "buy_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_costprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_costpriceavg",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_buyprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_number",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_sumprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "buy_rownumber",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "buy_freestatus",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_serialnumber",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "buy_discount",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "6d369f92756fc1af03fb51539eb4c331561b2cc707858fa40f12139c9a427dee"
+                   },
+                   {
+                       "name":  "payments",
+                       "file":  "payments.jsonl",
+                       "rows":  16024,
+                       "source_rows":  16024,
+                       "skipped_keyless":  0,
+                       "order_by":  "payment_id",
+                       "columns":  [
+                                       {
+                                           "name":  "payment_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "buy_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "payment_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "cust_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "payment_debsum",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "payment_debremain",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "payment_pay",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "payment_total",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "user_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "payment_datetime",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "9ccc93406fc21ca47d5b0cea8fed40a54b424f16381907dce927fbf1dd0d0d52"
+                   },
+                   {
+                       "name":  "ordermain",
+                       "file":  "ordermain.jsonl",
+                       "rows":  7319,
+                       "source_rows":  7319,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "order_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "sup_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "order_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "order_pricesum",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "order_pricevat",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "order_pricetotal",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "user_user",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "9ca4a6ec4af4553f61102df14e41bfeef33df075088e71d970897072b46d55b5"
+                   },
+                   {
+                       "name":  "orderdetails",
+                       "file":  "orderdetails.jsonl",
+                       "rows":  33773,
+                       "source_rows":  33773,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "order_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pro_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "order_costprice",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "order_number",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "order_sumprice",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "f2cfee73fffdf53fab53a9e51fd1d8a8b9dd3c528604fb1b2ffe0c8b9b0a04b0"
+                   },
+                   {
+                       "name":  "expenses",
+                       "file":  "expenses.jsonl",
+                       "rows":  94,
+                       "source_rows":  94,
+                       "skipped_keyless":  0,
+                       "order_by":  "expen_id",
+                       "columns":  [
+                                       {
+                                           "name":  "expen_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "expen_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "type_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "expen_detail",
+                                           "type":  "LONGCHAR"
+                                       },
+                                       {
+                                           "name":  "expen_total",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "user_user",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "dce19232d7cb2ad494c34c74570f6afab2a805cf59f15a019205a1cbc221a879"
+                   },
+                   {
+                       "name":  "expenses_type",
+                       "file":  "expenses_type.jsonl",
+                       "rows":  7,
+                       "source_rows":  7,
+                       "skipped_keyless":  0,
+                       "order_by":  null,
+                       "columns":  [
+                                       {
+                                           "name":  "type_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "expen_type",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "03f53fb455ad9afb49e03acaa5e47ed78f100357343a2c87afdcec2acd78118f"
+                   },
+                   {
+                       "name":  "criteriondividend",
+                       "file":  "criteriondividend.jsonl",
+                       "rows":  60,
+                       "source_rows":  60,
+                       "skipped_keyless":  0,
+                       "order_by":  "criteriondividend_id",
+                       "columns":  [
+                                       {
+                                           "name":  "criteriondividend_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_year",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_percent",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_maxhun",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_fixnoedit",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "criteriondividend_typepercent",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "7106b5eecc1483359c37b4ed791933d70da3f2e28ec9c2dc07db2a3500d79b7a"
+                   },
+                   {
+                       "name":  "temps",
+                       "file":  "temps.jsonl",
+                       "rows":  5,
+                       "source_rows":  5,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "temp1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "temp2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "temp3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "temp4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "temp5",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "temp6",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "temp7",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "f63a947ace7411fa923d15ab51496a191c142d090e7e53f7fa2b1660dbca7aef"
+                   },
+                   {
+                       "name":  "temps2",
+                       "file":  "temps2.jsonl",
+                       "rows":  1076,
+                       "source_rows":  1076,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "tempstr1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr5",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr6",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr7",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempint1",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint2",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint3",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint4",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint5",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "90d5bb071417cee50bbcdca7ed8f842bcac30a19907b6c646f469bcf54a720d8"
+                   },
+                   {
+                       "name":  "temps3",
+                       "file":  "temps3.jsonl",
+                       "rows":  1076,
+                       "source_rows":  1076,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "tempstr1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr5",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr6",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempstr7",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "tempint1",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint2",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint3",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint4",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "tempint5",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "38fbb6402c19f96b0fa746589ee48538b60066bf64bb719fd0b850f56be1055f"
+                   },
+                   {
+                       "name":  "chartmonth",
+                       "file":  "chartmonth.jsonl",
+                       "rows":  24,
+                       "source_rows":  24,
+                       "skipped_keyless":  0,
+                       "order_by":  "chart_id",
+                       "columns":  [
+                                       {
+                                           "name":  "chart_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "chart_year",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "chart_monthindex",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "chart_month",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "chart_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "chart_typename",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "chart_value",
+                                           "type":  "DOUBLE"
+                                       }
+                                   ],
+                       "sha256":  "098f960721845c59f84d0e20df37ca09ebfef82e337fe99ef5a8ccb88aec5f78"
+                   },
+                   {
+                       "name":  "logopencashdrawer",
+                       "file":  "logopencashdrawer.jsonl",
+                       "rows":  10654,
+                       "source_rows":  10654,
+                       "skipped_keyless":  0,
+                       "order_by":  "log_id",
+                       "columns":  [
+                                       {
+                                           "name":  "log_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "log_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "log_time",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "log_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "log_name",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "7293d458f807c70760ab18a641ed0d3af02cd596b6016c2cd9eeb32e3020f6b5"
+                   },
+                   {
+                       "name":  "saletoday",
+                       "file":  "saletoday.jsonl",
+                       "rows":  0,
+                       "source_rows":  0,
+                       "skipped_keyless":  0,
+                       "order_by":  "saletoday_id",
+                       "columns":  [
+                                       {
+                                           "name":  "saletoday_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "saletoday_date",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "saletoday_open_time",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "saletoday_open_user",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "saletoday_staus",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "saletoday_close_time",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "saletoday_close_user",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                   },
+                   {
+                       "name":  "promotionbill",
+                       "file":  "promotionbill.jsonl",
+                       "rows":  0,
+                       "source_rows":  0,
+                       "skipped_keyless":  0,
+                       "order_by":  "pm_id",
+                       "columns":  [
+                                       {
+                                           "name":  "pm_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "pm_number",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pm_comment",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_formattype",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_condition",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_count",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_typemoney",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_typepercent",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_datestart",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "pm_datestop",
+                                           "type":  "DATETIME"
+                                       }
+                                   ],
+                       "sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                   },
+                   {
+                       "name":  "promotionproduct",
+                       "file":  "promotionproduct.jsonl",
+                       "rows":  0,
+                       "source_rows":  0,
+                       "skipped_keyless":  0,
+                       "order_by":  "pm_id",
+                       "columns":  [
+                                       {
+                                           "name":  "pm_id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "pro_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_number",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "pm_comment",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_formattype",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_condition",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_count",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_type",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "pm_typemoney",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_typepercent",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "pm_datestart",
+                                           "type":  "DATETIME"
+                                       },
+                                       {
+                                           "name":  "pm_datestop",
+                                           "type":  "DATETIME"
+                                       }
+                                   ],
+                       "sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                   },
+                   {
+                       "name":  "barcodeforms",
+                       "file":  "barcodeforms.jsonl",
+                       "rows":  5,
+                       "source_rows":  5,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "barcodeform_id",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_name",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_columns",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_rows",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_pageleft",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_pagetop",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_pagewidth",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_barwidth",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_barheight",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_margintop",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_marginbuttom",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_marginleft",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_marginright",
+                                           "type":  "DOUBLE"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontsize_barcode",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontsize_proid",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontsize_proname",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontsize_proprice",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontname_barcode",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_fontname_text",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_visable_barcode",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_visable_proid",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_visable_proname",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_visable_proprice",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcodeform_image",
+                                           "type":  "LONGBINARY"
+                                       }
+                                   ],
+                       "sha256":  "9c08443aeb61d9b5e94ece3ca4dea728ebc689408ac3a69eb925919cca87f450"
+                   },
+                   {
+                       "name":  "barcodes",
+                       "file":  "barcodes.jsonl",
+                       "rows":  10,
+                       "source_rows":  10,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "INTEGER"
+                                       },
+                                       {
+                                           "name":  "barcode_1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcode_2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcode_3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barcode_4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_id_1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_id_2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_id_3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_id_4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_name_1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_name_2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_name_3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_name_4",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_price_1",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_price_2",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_price_3",
+                                           "type":  "VARCHAR"
+                                       },
+                                       {
+                                           "name":  "barpro_price_4",
+                                           "type":  "VARCHAR"
+                                       }
+                                   ],
+                       "sha256":  "26a24c5916bad112ab2b79ceb1ba8886f83b9b280979974f83ab4bca1a37b6ec"
+                   },
+                   {
+                       "name":  "barcodeencode",
+                       "file":  "barcodeencode.jsonl",
+                       "rows":  1,
+                       "source_rows":  1,
+                       "skipped_keyless":  0,
+                       "order_by":  "id",
+                       "columns":  [
+                                       {
+                                           "name":  "id",
+                                           "type":  "COUNTER"
+                                       },
+                                       {
+                                           "name":  "encodeallbar",
+                                           "type":  "LONGCHAR"
+                                       }
+                                   ],
+                       "sha256":  "d3d5798c2915cba5ccacaabb700b42238a195cf3cafe6b6a37009cb02762251d"
+                   }
+               ]
+}
