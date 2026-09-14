@@ -48,6 +48,17 @@ export const SERIAL_BAUD_RATES = [9600, 19200, 38400, 57600, 115200] as const;
 export const DEFAULT_SERIAL_BAUD = 9600;
 
 const STORAGE_KEY = 'pos.drawerPort';
+/**
+ * Quiet time between opening the port and sending anything.
+ *
+ * A USB-serial adapter that Windows has put into selective suspend takes a moment to wake, and
+ * CH340-class chips drop whatever arrives while they settle. Without this the whole first pulse
+ * lands inside that window and is lost — which is exactly the "press the test button twice, the
+ * second one opens the drawer" that บ้านบุญเรืองเหนือ saw: the first press only woke the adapter.
+ */
+const OPEN_SETTLE_MS = 300;
+/** Time to leave the port open after the last signal, so the box finishes its own pulse. */
+const CLOSE_HOLD_MS = 120;
 /** ESC p 0 25 250 — pin 2, then pin 5, the two the drawer can be wired to. */
 const KICK_PIN_2 = Uint8Array.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
 const KICK_PIN_5 = Uint8Array.from([0x1b, 0x70, 0x01, 0x19, 0xfa]);
@@ -196,7 +207,9 @@ export async function pulsePort(port: SerialPortLike, opts: PulseOptions = {}): 
     flowControl: 'none',
   });
   try {
+    await sleep(OPEN_SETTLE_MS);
     await fire(port, opts.trigger ?? 'auto');
+    await sleep(CLOSE_HOLD_MS);
   } finally {
     await port.close().catch(() => undefined);
   }

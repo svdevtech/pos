@@ -189,26 +189,26 @@ test('a printed slip ends with blank paper so the cutter misses the last line', 
  */
 async function fakeSerial(page: Page, granted: boolean) {
   await page.addInitScript((hasPort) => {
-    const log: { op: string; value?: unknown }[] = [];
+    const log: { op: string; value?: unknown; at: number }[] = [];
     (window as unknown as { __serial: unknown }).__serial = log;
     const port = {
       getInfo: () => ({ usbVendorId: 0x1a86, usbProductId: 0x7523 }),
       open: (o: unknown) => {
-        log.push({ op: 'open', value: o });
+        log.push({ op: 'open', value: o, at: Date.now() });
         return Promise.resolve();
       },
       close: () => {
-        log.push({ op: 'close' });
+        log.push({ op: 'close', at: Date.now() });
         return Promise.resolve();
       },
       setSignals: (sig: unknown) => {
-        log.push({ op: 'signals', value: sig });
+        log.push({ op: 'signals', value: sig, at: Date.now() });
         return Promise.resolve();
       },
       writable: {
         getWriter: () => ({
           write: (bytes: Uint8Array) => {
-            log.push({ op: 'write', value: Array.from(bytes) });
+            log.push({ op: 'write', value: Array.from(bytes), at: Date.now() });
             return Promise.resolve();
           },
           releaseLock: () => {},
@@ -238,9 +238,13 @@ test('a drawer on a serial kicker box is pulsed instead of printed at', async ({
   await expect
     .poll(async () => (await page.evaluate(() => (window as unknown as { __serial: { op: string }[] }).__serial)).some((o) => o.op === 'close'), { timeout: 15_000 })
     .toBe(true);
-  const ops = await page.evaluate(() => (window as unknown as { __serial: { op: string; value?: unknown }[] }).__serial);
+  const ops = await page.evaluate(() => (window as unknown as { __serial: { op: string; value?: unknown; at: number }[] }).__serial);
+  const firstSend = ops.find((o) => o.op === 'write' || o.op === 'signals');
+  const openToFirstSendMs = (firstSend?.at ?? 0) - (ops[0]?.at ?? 0);
   // the port is opened, fired, and handed back so the till is not left holding it
   expect(ops[0]).toMatchObject({ op: 'open', value: { baudRate: 9600 } });
+  // nothing is sent in the first moments after opening: a suspended USB-serial adapter drops it
+  expect(openToFirstSendMs).toBeGreaterThanOrEqual(250);
   expect(ops.at(-1)).toMatchObject({ op: 'close' });
   // "auto" means an unknown box gets all three triggers: ESC/POS bytes, then DTR, then RTS
   expect(ops.filter((o) => o.op === 'write').map((o) => o.value)).toEqual([
