@@ -314,7 +314,11 @@ export interface DashboardResponse {
   today?: {
     bills?: number;
     net?: Money;
+    /** Today's takings by tender; only `cash` ever reaches the drawer. */
     cash?: Money;
+    transfer?: Money;
+    qr?: Money;
+    card?: Money;
     credit?: Money;
     avg_bill?: Money;
     cancelled?: number;

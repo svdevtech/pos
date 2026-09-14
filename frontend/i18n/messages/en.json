@@ -168,7 +168,10 @@
     "todayNet": "Net sales today",
     "topProducts": "Top products today",
     "viewAr": "View receivables",
-    "viewLowStock": "View low stock"
+    "viewLowStock": "View low stock",
+    "todayTransfer": "Transfer today",
+    "todayQr": "QR today",
+    "todayCard": "Card"
   },
   "pos": {
     "settings": "Settings",

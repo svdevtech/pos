@@ -1009,9 +1009,14 @@ func (s *Service) RefreshMonthlyChart(ctx context.Context) error {
 // ---------------------------------------------------------------------------
 
 type DashboardToday struct {
-	Bills     int64           `json:"bills"`
-	Net       decimal.Decimal `json:"net"`
+	Bills int64           `json:"bills"`
+	Net   decimal.Decimal `json:"net"`
+	// Today's takings split by tender. Only cash reaches the drawer; the rest is what the shop has
+	// to reconcile against its bank and its member accounts, so the dashboard shows them all.
 	Cash      decimal.Decimal `json:"cash"`
+	Transfer  decimal.Decimal `json:"transfer"`
+	QR        decimal.Decimal `json:"qr"`
+	Card      decimal.Decimal `json:"card"`
 	Credit    decimal.Decimal `json:"credit"`
 	AvgBill   decimal.Decimal `json:"avg_bill"`
 	Cancelled int64           `json:"cancelled"`
@@ -1051,6 +1056,7 @@ func (s *Service) Dashboard(ctx context.Context, storeID uuid.UUID) (*Dashboard,
 			out.Today.Bills += r.Bills
 			out.Today.Cancelled += r.Cancelled
 			out.Today.Net, out.Today.Cash, out.Today.Credit = out.Today.Net.Add(r.Net), out.Today.Cash.Add(r.Cash), out.Today.Credit.Add(r.Credit)
+			out.Today.Transfer, out.Today.QR, out.Today.Card = out.Today.Transfer.Add(r.Transfer), out.Today.QR.Add(r.QR), out.Today.Card.Add(r.Card)
 		}
 		out.Today.AvgBill = avg(out.Today.Net, out.Today.Bills)
 		mtd, err := s.rep.SalesTotals(ctx, storeID, monthStart, tomorrow)

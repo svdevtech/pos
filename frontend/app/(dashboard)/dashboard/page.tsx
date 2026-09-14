@@ -1,10 +1,12 @@
 'use client';
 
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CancelIcon from '@mui/icons-material/Cancel';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
@@ -166,13 +168,22 @@ export default function DashboardPage() {
         // The reports endpoint may not exist yet: build a minimal view from the sales summary.
         if (isApiError(err) && (err.status === 404 || err.status === 501)) {
           const s = await posApi.summary(today, today);
-          const cash = s?.by_method?.cash ?? 0;
-          const credit = s?.by_method?.credit ?? 0;
+          const m = s?.by_method ?? {};
           const bills = s?.bills ?? 0;
           return {
             fallback: true,
             data: {
-              today: { bills, net: s?.net ?? 0, cash, credit, avg_bill: bills > 0 ? money(dec(s?.net) / bills) : 0, cancelled: s?.cancelled ?? 0 },
+              today: {
+                bills,
+                net: s?.net ?? 0,
+                cash: m.cash ?? 0,
+                transfer: m.transfer ?? 0,
+                qr: m.qr ?? 0,
+                card: m.card ?? 0,
+                credit: m.credit ?? 0,
+                avg_bill: bills > 0 ? money(dec(s?.net) / bills) : 0,
+                cancelled: s?.cancelled ?? 0,
+              },
             },
           };
         }
@@ -238,11 +249,12 @@ export default function DashboardPage() {
       {dashboard.isError && <Alert severity="error">{errorMessage(dashboard.error)}</Alert>}
       {dashboard.data?.fallback && <Alert severity="info">{t('fallbackNotice')}</Alert>}
 
+      {/* Two rows of four: the shape of the day first, then where the money actually came in. */}
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
+        <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<ReceiptIcon />} label={t('todayBills')} value={dashboard.isPending ? '…' : formatQty(today_?.bills ?? 0, locale)} href="/pos/history" />
         </Grid>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
+        <Grid item xs={12} sm={6} md={3}>
           <Kpi
             icon={<PointOfSaleIcon />}
             label={t('todayNet')}
@@ -250,17 +262,29 @@ export default function DashboardPage() {
             hint={d?.month_to_date_net !== undefined ? `${t('monthToDate')} ${formatMoney(d.month_to_date_net, locale)}` : undefined}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
-          <Kpi icon={<PaymentsIcon />} label={t('todayCash')} value={dashboard.isPending ? '…' : formatMoney(today_?.cash ?? 0, locale)} />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
-          <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
+        <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<ShowChartIcon />} label={t('avgBill')} value={dashboard.isPending ? '…' : formatMoney(today_?.avg_bill ?? 0, locale)} />
         </Grid>
-        <Grid item xs={12} sm={6} md={4} xl={2}>
+        <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<CancelIcon />} label={t('cancelledBills')} value={v(today_?.cancelled ?? 0)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<PaymentsIcon />} label={t('todayCash')} value={dashboard.isPending ? '…' : formatMoney(today_?.cash ?? 0, locale)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<AccountBalanceIcon />} label={t('todayTransfer')} value={dashboard.isPending ? '…' : formatMoney(today_?.transfer ?? 0, locale)} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi
+            icon={<QrCode2Icon />}
+            label={t('todayQr')}
+            value={dashboard.isPending ? '…' : formatMoney(today_?.qr ?? 0, locale)}
+            // card sales are rare enough not to earn a tile of their own, but must not vanish
+            hint={dec(today_?.card) > 0 ? `${t('todayCard')} ${formatMoney(today_?.card ?? 0, locale)}` : undefined}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
         </Grid>
       </Grid>
 

@@ -168,7 +168,10 @@
     "todayNet": "ยอดขายสุทธิวันนี้",
     "topProducts": "สินค้าขายดีวันนี้",
     "viewAr": "ดูลูกหนี้",
-    "viewLowStock": "ดูสินค้าใกล้หมด"
+    "viewLowStock": "ดูสินค้าใกล้หมด",
+    "todayTransfer": "เงินโอนวันนี้",
+    "todayQr": "QR วันนี้",
+    "todayCard": "บัตร"
   },
   "pos": {
     "settings": "ตั้งค่า",
