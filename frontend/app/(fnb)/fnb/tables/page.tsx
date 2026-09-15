@@ -2,6 +2,7 @@
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PrintIcon from '@mui/icons-material/Print';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
@@ -9,14 +10,17 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useToast } from '@/components/Toast';
 import { GlassButton, GlassCard } from '@/components/glass';
+import { paperWidthMm } from '@/components/pos/ReceiptPrint';
 import { fnbApi, fnbKeys } from '@/lib/fnb/api';
 import { tables, zones } from '@/lib/fnb/mock';
 import { tableUrl } from '@/lib/fnb/publicApi';
-import { qrPath } from '@/lib/pos/qrPayload';
+import { printQrSlips } from '@/lib/fnb/qrSlip';
 import { useFnb } from '@/lib/fnb/store';
+import { posApi, posKeys } from '@/lib/pos/api';
+import { qrPath } from '@/lib/pos/qrPayload';
 
 /** A QR as inline SVG, from the same encoder the PromptPay code uses. */
 function Qr({ text, size = 160 }: { text: string; size?: number }) {
@@ -54,6 +58,18 @@ export default function TablesPage() {
     onError: (e) => toast.error(String((e as Error)?.message ?? e)),
   });
   const byCode = Object.fromEntries((tokens.data ?? []).map((x) => [x.table_code, x]));
+  const store = useQuery({ queryKey: posKeys.store, queryFn: posApi.store, staleTime: 5 * 60_000 });
+  const settings = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
+
+  // the slip goes out through the receipt printer, like everything else the till prints
+  const print = useCallback(
+    (codes: string[]) => {
+      const entries = codes.map((c) => byCode[c]).filter(Boolean).map((tk) => ({ code: tk.table_code, url: tableUrl(tk.token) }));
+      if (entries.length === 0) return;
+      printQrSlips(entries, store.data?.name ?? '', { table: t('table'), scan: t('scanToOrder'), validUntilClose: t('qrValidUntilClose') }, paperWidthMm(settings.data ?? null));
+    },
+    [byCode, store.data?.name, settings.data, t],
+  );
 
   const copy = async (text: string) => {
     try {
@@ -66,9 +82,14 @@ export default function TablesPage() {
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: 1.5 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        {t('tablesQrHint')}
-      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+          {t('tablesQrHint')}
+        </Typography>
+        <GlassButton size="small" variant="outlined" startIcon={<PrintIcon />} onClick={() => print(codes)} disabled={!tokens.data?.length} data-testid="tables-print-all">
+          {t('printAllQr')}
+        </GlassButton>
+      </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 1.5 }}>
         {tables.map((tb) => {
           const tk = byCode[tb.name];
@@ -84,6 +105,9 @@ export default function TablesPage() {
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap justifyContent="center">
                   <GlassButton size="small" variant="outlined" startIcon={<OpenInNewIcon />} href={tk?.kiosk_token ? tableUrl(tk.kiosk_token) : '#'} target="_blank" disabled={!tk?.kiosk_token} title={t('kioskHint')}>
                     {t('openKiosk')}
+                  </GlassButton>
+                  <GlassButton size="small" variant="text" startIcon={<PrintIcon />} onClick={() => print([tb.name])} disabled={!url} title={t('printQrHint')} data-testid={`table-print-${tb.name}`}>
+                    {t('printQr')}
                   </GlassButton>
                   <GlassButton size="small" variant="text" startIcon={<ContentCopyIcon />} onClick={() => void copy(url)} disabled={!url}>
                     {t('copyLink')}
