@@ -18,9 +18,9 @@ import { useMenuAll } from '@/components/fnb/settings/useMenuAll';
 import { GlassButton, GlassDialog, GlassInput, GlassTable } from '@/components/glass';
 import { useToast } from '@/components/Toast';
 import { useApiErrorMessage } from '@/lib/api/errors';
-import { fnbApi, fnbKeys, type Modifier, type ModifierGroup } from '@/lib/fnb/api';
+import { fnbApi, fnbKeys, type ModifierGroup, type ModifierGroupInput, type ModifierInput } from '@/lib/fnb/api';
 
-type Draft = Omit<ModifierGroup, 'id'> & { id?: string };
+type Draft = ModifierGroupInput;
 
 /** Option groups — size, hot/iced, sweetness, milk, extras — each option with its price and what it does to the recipe. */
 export default function ModifierSettings() {
@@ -44,7 +44,10 @@ export default function ModifierSettings() {
     mutationFn: (d: Draft) =>
       fnbApi.saveModifierGroup({
         ...d,
-        modifiers: d.modifiers.filter((m) => m.name.trim()).map((m, i) => ({ ...m, sort: i, price_delta: String(m.price_delta || 0), lines: (m.lines ?? []).filter((l) => l.ingredient_product_id) })),
+        modifiers: d.modifiers
+          .filter((m) => m.name.trim())
+          // an option added in this dialog has no id yet; an empty string is not a uuid the API will take
+          .map((m, i) => ({ ...m, id: m.id || undefined, group_id: m.group_id || undefined, sort: i, price_delta: String(m.price_delta || 0), lines: (m.lines ?? []).filter((l) => l.ingredient_product_id) })),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: fnbKeys.menu });
@@ -55,8 +58,8 @@ export default function ModifierSettings() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const setMod = (i: number, patch: Partial<Modifier>) => draft && setDraft({ ...draft, modifiers: draft.modifiers.map((m, j) => (j === i ? { ...m, ...patch } : m)) });
-  const blank = (): Modifier => ({ id: '', group_id: draft?.id ?? '', name: '', price_delta: '0', is_default: false, sort: draft?.modifiers.length ?? 0, is_active: true, lines: [] });
+  const setMod = (i: number, patch: Partial<ModifierInput>) => draft && setDraft({ ...draft, modifiers: draft.modifiers.map((m, j) => (j === i ? { ...m, ...patch } : m)) });
+  const blank = (): ModifierInput => ({ name: '', price_delta: '0', is_default: false, sort: draft?.modifiers.length ?? 0, is_active: true, lines: [] });
 
   return (
     <Box>

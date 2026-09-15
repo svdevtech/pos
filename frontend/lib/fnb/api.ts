@@ -149,6 +149,9 @@ export interface Modifier {
   lines?: RecipeLine[];
 }
 
+/** What the settings screen sends: a group or an option that has not been saved yet carries no id. */
+export type ModifierInput = Omit<Modifier, 'id' | 'group_id'> & { id?: string; group_id?: string };
+
 export interface ModifierGroup {
   id: string;
   name: string;
@@ -159,6 +162,8 @@ export interface ModifierGroup {
   is_active: boolean;
   modifiers: Modifier[];
 }
+
+export type ModifierGroupInput = Omit<ModifierGroup, 'id' | 'modifiers'> & { id?: string; modifiers: ModifierInput[] };
 
 export interface MenuView {
   stations: Station[];
@@ -341,7 +346,7 @@ export const fnbApi = {
   saveStation: (s: Partial<Station>) => api.put<Station>('/fnb/menu/stations', s),
   saveCategory: (c: Partial<MenuCategory>) => api.put<MenuCategory>('/fnb/menu/categories', c),
   saveItem: (m: Partial<MenuItem>) => api.put<MenuItem>('/fnb/menu/items', m),
-  saveModifierGroup: (g: Partial<ModifierGroup>) => api.put<ModifierGroup>('/fnb/menu/modifier-groups', g),
+  saveModifierGroup: (g: ModifierGroupInput) => api.put<ModifierGroup>('/fnb/menu/modifier-groups', g),
   /** Every table's QR token; `ensure` names tables that should get one if they have none yet. */
   tables: (ensure: string[] = []) => api.get<TableToken[]>(`/fnb/tables${ensure.length ? `?ensure=${encodeURIComponent(ensure.join(','))}` : ''}`),
   rotateTable: (code: string) => api.post<TableToken>(`/fnb/tables/${encodeURIComponent(code)}/rotate`, {}),

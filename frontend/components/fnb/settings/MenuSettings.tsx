@@ -221,7 +221,7 @@ export default function MenuSettings() {
                 )}
                 {groups.map((g) => {
                   const on = item.modifier_group_ids.includes(g.id);
-                  return <Chip key={g.id} label={g.name} clickable color={on ? 'secondary' : 'default'} variant={on ? 'filled' : 'outlined'} onClick={() => setItem({ ...item, modifier_group_ids: on ? item.modifier_group_ids.filter((x) => x !== g.id) : [...item.modifier_group_ids, g.id] })} />;
+                  return <Chip key={g.id} label={g.name} clickable color={on ? 'secondary' : 'default'} variant={on ? 'filled' : 'outlined'} onClick={() => setItem({ ...item, modifier_group_ids: on ? item.modifier_group_ids.filter((x) => x !== g.id) : [...item.modifier_group_ids, g.id] })} data-testid={`cfg-item-group-${g.id}`} />;
                 })}
               </Stack>
             </Box>

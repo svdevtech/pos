@@ -36,3 +36,5 @@ legacy-kaen*/
 
 # generated from the manuals: npm run docs:pdf
 /docs/pdf/
+frontend/tests/live/report-fnb.json
+frontend/tests/live/shots-fnb/

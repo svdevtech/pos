@@ -29,6 +29,7 @@ import TenderDialog from '@/components/pos/TenderDialog';
 import { useToast } from '@/components/Toast';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
+import ModifierDialog from '@/components/fnb/ModifierDialog';
 import { useFnb, type CartLine, type TableStatus } from '@/lib/fnb/store';
 import type { Category, MenuItem } from '@/lib/fnb/types';
 import { dec } from '@/lib/pos/types';
@@ -313,7 +314,7 @@ export default function FloorPage() {
   );
 }
 
-/** A compact menu for the waiter's phone: category tabs, tap to add, defaults for the options. */
+/** A compact menu for the waiter's phone: category tabs, tap to add; a dish with options asks for them. */
 function TableOrderDialog({
   categories,
   items: menu,
@@ -327,21 +328,26 @@ function TableOrderDialog({
 }) {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
-  const { lineTotal } = useFnb();
+  const { lineTotal, menu: fnbMenu } = useFnb();
   // open on the first food category: a waiter at a table is not there for coffee first
   const [category, setCategory] = useState<string>(categories.find((c) => /ข้าว|rice/i.test(c.name))?.id ?? categories[0]?.id ?? '');
   const [lines, setLines] = useState<CartLine[]>([]);
+  const [picking, setPicking] = useState<MenuItem | null>(null);
   const items = menu.filter((m) => m.categoryId === category && m.channels.includes('dine_in'));
   const total = lines.reduce((s, l) => s + lineTotal(l), 0);
 
-  const add = (id: string) =>
+  const addLine = (line: CartLine) =>
     setLines((ls) => {
-      const i = ls.findIndex((l) => l.menuItemId === id && l.modifierIds.length === 0);
-      if (i === -1) return [...ls, { menuItemId: id, qty: 1, modifierIds: [] }];
+      const key = [...line.modifierIds].sort().join(',');
+      const i = ls.findIndex((l) => l.menuItemId === line.menuItemId && [...l.modifierIds].sort().join(',') === key && (l.note ?? '') === (line.note ?? ''));
+      if (i === -1) return [...ls, line];
       const next = [...ls];
-      next[i] = { ...next[i], qty: next[i].qty + 1 };
+      next[i] = { ...next[i], qty: next[i].qty + line.qty };
       return next;
     });
+
+  // a dish with options has to be asked about here too, or the kitchen gets a drink with no size
+  const tap = (item: MenuItem) => (item.modifierGroupIds.length ? setPicking(item) : addLine({ menuItemId: item.id, qty: 1, modifierIds: [] }));
 
   return (
     <GlassDialog
@@ -363,14 +369,14 @@ function TableOrderDialog({
     >
       <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 1 }}>
         {categories.map((c) => (
-          <Chip key={c.id} label={`${c.emoji} ${c.name}`} clickable color={c.id === category ? 'primary' : 'default'} variant={c.id === category ? 'filled' : 'outlined'} onClick={() => setCategory(c.id)} />
+          <Chip key={c.id} label={`${c.emoji} ${c.name}`} clickable color={c.id === category ? 'primary' : 'default'} variant={c.id === category ? 'filled' : 'outlined'} onClick={() => setCategory(c.id)} data-testid={`table-cat-${c.id}`} />
         ))}
       </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 1, mb: 2 }}>
         {items.map((m) => (
           <Box
             key={m.id}
-            onClick={() => add(m.id)}
+            onClick={() => tap(m)}
             data-testid={`table-tile-${m.id}`}
             sx={{ cursor: 'pointer', borderRadius: 2, p: 1.25, border: '1px solid', borderColor: 'divider', '&:active': { transform: 'scale(0.97)' } }}
           >
@@ -404,6 +410,18 @@ function TableOrderDialog({
           </Stack>
         );
       })}
+      {picking && (
+        <ModifierDialog
+          item={picking}
+          groups={fnbMenu.modifierGroupById}
+          price={(line) => lineTotal(line)}
+          onClose={() => setPicking(null)}
+          onAdd={(line) => {
+            addLine(line);
+            setPicking(null);
+          }}
+        />
+      )}
     </GlassDialog>
   );
 }
