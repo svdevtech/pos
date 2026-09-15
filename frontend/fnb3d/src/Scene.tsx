@@ -15,9 +15,9 @@
  * The page swaps in the 2D plan when WebGL is missing or the frame rate collapses.
  */
 
-import { Html, OrthographicCamera, RoundedBox, Text } from '@react-three/drei';
+import { OrthographicCamera, RoundedBox, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { FLOOR, STATUS_COLOR, tables, zones, type Table, type TableStatus } from './floor';
 
@@ -71,12 +71,12 @@ function TableMesh({ table, status, selected, onSelect }: { table: Table; status
           {table.name}
         </Text>
       </group>
-      {/* seat count as a small HTML badge: crisp at any zoom, and no extra geometry */}
-      <Html position={[0, size[1] + 0.35, 0]} center distanceFactor={9} style={{ pointerEvents: 'none' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.45)', borderRadius: 8, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-          {table.seats} 👤
-        </div>
-      </Html>
+      {/* seat count as in-scene text, not a drei <Html> badge: under an orthographic camera Html's
+          distance scaling blows the badge up to cover the whole floor, and DOM overlays cost more
+          than a few glyphs on a tablet anyway */}
+      <Text position={[0, size[1] + 0.05, 0.28]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.16} color="rgba(255,255,255,0.75)" anchorX="center" anchorY="middle">
+        {`${table.seats} seats`}
+      </Text>
     </group>
   );
 }
@@ -126,6 +126,17 @@ function CameraRig({ target }: { target: THREE.Vector3 | null }) {
   return null;
 }
 
+/** With ?debug=1 the r3f store is put on window for support tooling and for the e2e probes. */
+function DebugExpose() {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('debug') === '1') {
+      (window as unknown as { __r3f?: unknown }).__r3f = get;
+    }
+  }, [get]);
+  return null;
+}
+
 function FpsProbe({ onFps }: { onFps?: (fps: number) => void }) {
   const frames = useRef(0);
   const last = useRef(performance.now());
@@ -147,8 +158,10 @@ export default function FloorPlan3D({ statusOf, selectedId, onSelect, onFps }: F
     return tb ? new THREE.Vector3(ox + tb.x, 0, oz + tb.y) : null;
   }, [selectedId]);
 
+  // preserveDrawingBuffer: the host can screenshot or print the plan and the frame survives a
+  // readPixels — cheap for a scene this small
   return (
-    <Canvas dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'low-power' }} style={{ width: '100%', height: '100%' }} data-testid="floor-3d">
+    <Canvas dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'low-power', preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }} data-testid="floor-3d">
       <color attach="background" args={['#0b1220']} />
       <OrthographicCamera makeDefault zoom={48} position={[10, 12, 10]} near={0.1} far={100} />
       <ambientLight intensity={0.75} />
@@ -159,6 +172,7 @@ export default function FloorPlan3D({ statusOf, selectedId, onSelect, onFps }: F
       ))}
       <CameraRig target={target} />
       <FpsProbe onFps={onFps} />
+      <DebugExpose />
     </Canvas>
   );
 }
