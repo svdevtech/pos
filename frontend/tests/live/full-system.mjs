@@ -469,13 +469,17 @@ const main = async () => {
     await page.getByRole('button', { name: L('ar.pay'), exact: true }).first().click();
     await page.waitForTimeout(1500);
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel(L('ar.payAmount')).fill('10');
+    // never more than is owed: the test product is cheap, and an over-payment is refused
+    const pay = Math.min(10, state.arBalance);
+    await dialog.getByLabel(L('ar.payAmount')).fill(String(pay));
     await dialog.getByRole('button', { name: L('ar.receivePayment'), exact: true }).click();
     await page.waitForTimeout(3000);
     const ar = await api(page, `/ar/accounts?q=${encodeURIComponent(RUN)}`);
     const acct = (ar.body?.items ?? ar.body ?? []).find?.((a) => String(a.member_code ?? '').includes(RUN));
-    assert(Number(acct.balance) === state.arBalance - 10, `balance ${acct.balance}, expected ${state.arBalance - 10}`);
-    return `หนี้คงเหลือ ${acct.balance}`;
+    // an account that owes nothing drops off the list
+    const left = acct ? Number(acct.balance) : 0;
+    assert(left === state.arBalance - pay, `balance ${left}, expected ${state.arBalance - pay}`);
+    return `จ่าย ${pay} · หนี้คงเหลือ ${left}`;
   });
 
   // ---------------------------------------------------------- J. expenses
