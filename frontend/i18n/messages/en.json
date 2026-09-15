@@ -1675,10 +1675,10 @@
     "pickUp": "Ready to collect",
     "prototypeNote": "Prototype — data lives in this browser. Open the kitchen display in a second tab to watch orders cross screens.",
     "tablesQr": "Table QR",
-    "tablesQrHint": "Print it or open it on the table's tablet; customers scan and order themselves, no app needed",
+    "tablesQrHint": "The customer QR changes by itself every time the table is closed (so a photo of it cannot order from elsewhere), so show it on the table's tablet rather than printing it — “Open the table screen” is the tablet's permanent link",
     "openKiosk": "Open the table screen",
     "rotateToken": "Issue a new code",
-    "rotateHint": "The old code on any printed card stops working",
+    "rotateHint": "Issue a new code now; anyone holding the old one can no longer order (it happens by itself when the table is closed)",
     "copyLink": "Copy link",
     "linkCopied": "Copied",
     "live": "live",
@@ -1693,6 +1693,9 @@
     "tableNotFound": "This QR is no longer valid, please call a member of staff",
     "welcome": "Welcome",
     "backToQr": "Back to the QR",
-    "itemsInCart": "{n} items"
+    "itemsInCart": "{n} items",
+    "kioskHint": "The permanent link for the table's tablet: shows the current QR large and swaps it when the table is closed",
+    "sessionEnded": "Thank you!",
+    "sessionEndedHint": "This QR has expired. To order more, scan the new QR at the table"
   }
 }

@@ -398,37 +398,42 @@ func (FnbRepo) IngredientCosts(ctx context.Context, storeID uuid.UUID, ids []uui
 // Table tokens
 // ---------------------------------------------------------------------------
 
+// TableTokenRow is one table's two addresses: Token is what customers scan and changes every
+// time the table is closed; KioskToken is the fixed tablet's and never changes.
 type TableTokenRow struct {
-	TableCode string
-	Token     string
-	IsActive  bool
+	StoreID    uuid.UUID
+	TableCode  string
+	Token      string
+	KioskToken string
+	IsActive   bool
 }
 
-// EnsureTableToken returns the table's token, making one if it has none; rotate replaces it.
+// EnsureTableToken returns the table's tokens, making them if it has none; rotate replaces the
+// customer code and leaves the kiosk one alone, so the tablet on the table stays put.
 func (FnbRepo) EnsureTableToken(ctx context.Context, storeID uuid.UUID, tableCode string, rotate bool) (*TableTokenRow, error) {
-	var r TableTokenRow
-	if rotate {
-		err := Q(ctx).QueryRow(ctx, `INSERT INTO table_tokens (store_id, table_code, token) VALUES ($1,$2,$3)
-			ON CONFLICT (store_id, table_code) DO UPDATE SET token=EXCLUDED.token, is_active=true, created_at=now()
-			RETURNING table_code, token, is_active`, storeID, tableCode, newToken()).Scan(&r.TableCode, &r.Token, &r.IsActive)
-		return &r, err
-	}
-	err := Q(ctx).QueryRow(ctx, `INSERT INTO table_tokens (store_id, table_code, token) VALUES ($1,$2,$3)
+	r := TableTokenRow{StoreID: storeID}
+	q := `INSERT INTO table_tokens (store_id, table_code, token, kiosk_token) VALUES ($1,$2,$3,$4)
 		ON CONFLICT (store_id, table_code) DO UPDATE SET table_code=EXCLUDED.table_code
-		RETURNING table_code, token, is_active`, storeID, tableCode, newToken()).Scan(&r.TableCode, &r.Token, &r.IsActive)
+		RETURNING table_code, token, kiosk_token, is_active`
+	if rotate {
+		q = `INSERT INTO table_tokens (store_id, table_code, token, kiosk_token) VALUES ($1,$2,$3,$4)
+		ON CONFLICT (store_id, table_code) DO UPDATE SET token=EXCLUDED.token, is_active=true, created_at=now()
+		RETURNING table_code, token, kiosk_token, is_active`
+	}
+	err := Q(ctx).QueryRow(ctx, q, storeID, tableCode, newToken(), "k"+newToken()).Scan(&r.TableCode, &r.Token, &r.KioskToken, &r.IsActive)
 	return &r, err
 }
 
 func (FnbRepo) TableTokens(ctx context.Context, storeID uuid.UUID) ([]TableTokenRow, error) {
-	rows, err := Q(ctx).Query(ctx, `SELECT table_code, token, is_active FROM table_tokens WHERE store_id=$1 ORDER BY length(table_code), table_code`, storeID)
+	rows, err := Q(ctx).Query(ctx, `SELECT table_code, token, kiosk_token, is_active FROM table_tokens WHERE store_id=$1 ORDER BY length(table_code), table_code`, storeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []TableTokenRow{}
 	for rows.Next() {
-		var r TableTokenRow
-		if err := rows.Scan(&r.TableCode, &r.Token, &r.IsActive); err != nil {
+		r := TableTokenRow{StoreID: storeID}
+		if err := rows.Scan(&r.TableCode, &r.Token, &r.KioskToken, &r.IsActive); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -436,15 +441,16 @@ func (FnbRepo) TableTokens(ctx context.Context, storeID uuid.UUID) ([]TableToken
 	return out, rows.Err()
 }
 
-// TableByToken resolves a public token. Must run with RLS bypassed: nobody is signed in yet.
-func (FnbRepo) TableByToken(ctx context.Context, token string) (uuid.UUID, string, error) {
-	var storeID uuid.UUID
-	var code string
-	err := Q(ctx).QueryRow(ctx, `SELECT store_id, table_code FROM table_tokens WHERE token=$1 AND is_active`, token).Scan(&storeID, &code)
+// TableByToken resolves a public token, the customer's or the kiosk's; kiosk says which one it
+// was. Must run with RLS bypassed: nobody is signed in yet.
+func (FnbRepo) TableByToken(ctx context.Context, token string) (row *TableTokenRow, kiosk bool, err error) {
+	var r TableTokenRow
+	err = Q(ctx).QueryRow(ctx, `SELECT store_id, table_code, token, kiosk_token, is_active, kiosk_token=$1
+		FROM table_tokens WHERE (token=$1 OR kiosk_token=$1) AND is_active`, token).Scan(&r.StoreID, &r.TableCode, &r.Token, &r.KioskToken, &r.IsActive, &kiosk)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, "", domain.ErrNotFound
+		return nil, false, domain.ErrNotFound
 	}
-	return storeID, code, err
+	return &r, kiosk, err
 }
 
 // newToken is 20 random bytes, URL-safe: long enough that a QR cannot be guessed, short enough

@@ -160,14 +160,18 @@ export interface CreateOrderInput {
 
 export interface TableToken {
   table_code: string;
+  /** What customers scan; replaced every time the table is closed. */
   token: string;
+  /** The fixed tablet's own address; never changes. */
+  kiosk_token?: string;
   is_active: boolean;
 }
 
-/** One order event from /fnb/stream: the whole order rides along, nothing to fetch. */
+/** One event from /fnb/stream: an order (the whole order rides along, nothing to fetch) or a table whose customer code changed. */
 export interface OrderEvent {
-  kind: 'created' | 'updated';
-  order: Order;
+  kind: 'created' | 'updated' | 'table';
+  order?: Order;
+  table?: TableToken;
 }
 
 export const fnbKeys = {

@@ -11,12 +11,12 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
-import type { LineInput, MenuItem, ModifierGroup, Order } from '@/lib/fnb/api';
+import type { LineInput, MenuItem, ModifierGroup, Order, OrderEvent } from '@/lib/fnb/api';
 import { tableApi, tableUrl, type TableView } from '@/lib/fnb/publicApi';
 import { qrPath } from '@/lib/pos/qrPayload';
 import { dec } from '@/lib/pos/types';
@@ -25,20 +25,23 @@ import { dec } from '@/lib/pos/types';
  * The page behind a table's QR. Two ways in, one page:
  *   - a customer's own phone after scanning: the menu, a basket, "send", and the status of what
  *     they ordered, kept live by the table's event stream
- *   - the tablet fixed to the table, opened with ?kiosk=1: a large QR for phones plus a button
- *     that opens the same ordering screen right there
- * No sign-in: the token in the URL says which shop and which table, and nothing more.
+ *   - the tablet fixed to the table, opened with its own permanent kiosk token: a large QR for
+ *     phones plus a button that opens the same ordering screen right there
+ * No sign-in: the token in the URL says which shop and which table, and nothing more. The
+ * customers' code is replaced every time the table is closed — the tablet hears the new one over
+ * the stream and redraws the QR; a phone still holding the old one is told its session ended.
  */
 export default function TablePage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
   const { token } = useParams<{ token: string }>();
-  const kiosk = useSearchParams().get('kiosk') === '1';
 
   const [view, setView] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ended, setEnded] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [ordering, setOrdering] = useState(!kiosk);
+  const [ordering, setOrdering] = useState(false);
+  const kiosk = view?.kiosk ?? false;
   const [cart, setCart] = useState<LineInput[]>([]);
   const [picking, setPicking] = useState<MenuItem | null>(null);
   const [sending, setSending] = useState(false);
@@ -55,19 +58,37 @@ export default function TablePage() {
       .catch((e) => setError(String((e as Error)?.message ?? e)));
   }, [token]);
 
-  // the table's own events: a dish going from preparing to ready shows without a refresh
+  // the table's own events: a dish going from preparing to ready shows without a refresh, and
+  // the table closing ends the session (the tablet gets the next party's code instead)
+  const loaded = !!view;
   useEffect(() => {
-    if (!view) return;
+    if (!loaded) return;
     const es = new EventSource(tableApi.streamUrl(token));
     es.addEventListener('order', (e) => {
       try {
-        const ev = JSON.parse((e as MessageEvent).data) as { order: Order };
+        const ev = JSON.parse((e as MessageEvent).data) as OrderEvent;
+        if (ev.kind === 'table') {
+          const fresh = ev.table?.token;
+          if (fresh) {
+            setView((v) => (v ? { ...v, guest_token: fresh } : v));
+            setOrders([]);
+            setCart([]);
+            setSentAt(null);
+            setOrdering(false);
+          } else {
+            setEnded(true);
+            es.close();
+          }
+          return;
+        }
+        const order = ev.order;
+        if (!order) return;
         setOrders((cur) => {
-          const i = cur.findIndex((o) => o.id === ev.order.id);
-          const keep = ev.order.status === 'open' || ev.order.status === 'paid';
-          if (i === -1) return keep ? [...cur, ev.order] : cur;
+          const i = cur.findIndex((o) => o.id === order.id);
+          const keep = order.status === 'open' || order.status === 'paid';
+          if (i === -1) return keep ? [...cur, order] : cur;
           const next = [...cur];
-          if (keep) next[i] = ev.order;
+          if (keep) next[i] = order;
           else next.splice(i, 1);
           return next;
         });
@@ -75,8 +96,12 @@ export default function TablePage() {
         /* ignore a bad frame */
       }
     });
+    // a phone that reconnects after its code was replaced is refused outright (no retry)
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) setEnded(true);
+    };
     return () => es.close();
-  }, [token, view]);
+  }, [token, loaded]);
 
   const menu = view?.menu;
   const groupById = useMemo(() => Object.fromEntries((menu?.modifier_groups ?? []).map((g) => [g.id, g])), [menu]);
@@ -116,6 +141,18 @@ export default function TablePage() {
     }
   };
 
+  if (ended && !kiosk) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+        <Box sx={{ textAlign: 'center' }} data-testid="t-ended">
+          <Typography variant="h5" fontWeight={800} gutterBottom>
+            {t('sessionEnded')}
+          </Typography>
+          <Typography color="text.secondary">{t('sessionEndedHint')}</Typography>
+        </Box>
+      </Box>
+    );
+  }
   if (error && !view) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
@@ -135,7 +172,7 @@ export default function TablePage() {
 
   // ------------------------------------------------------------- kiosk: the QR screen
   if (kiosk && !ordering) {
-    const url = tableUrl(token);
+    const url = tableUrl(view.guest_token ?? token);
     const m = qrPath(url, 1);
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, p: 3, textAlign: 'center' }} data-testid="kiosk">

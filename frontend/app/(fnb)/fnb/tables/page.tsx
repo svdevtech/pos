@@ -36,8 +36,10 @@ function Qr({ text, size = 160 }: { text: string; size?: number }) {
 }
 
 /**
- * One card per table with the QR its customers scan. The same link opened with ?kiosk=1 is the
- * screen for a tablet fixed to the table: a big QR plus "or order from this screen".
+ * One card per table with the QR its customers scan. That code is replaced every time the table
+ * is closed (and by hand with the rotate button), so it belongs on the tablet fixed to the
+ * table rather than on a printed card: the tablet opens its own permanent link, shows the
+ * current code big, and hears the next one over the stream.
  */
 export default function TablesPage() {
   const t = useTranslations('fnb');
@@ -80,7 +82,7 @@ export default function TablesPage() {
                   {url}
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap justifyContent="center">
-                  <GlassButton size="small" variant="outlined" startIcon={<OpenInNewIcon />} href={tk ? tableUrl(tk.token, true) : '#'} target="_blank" disabled={!tk}>
+                  <GlassButton size="small" variant="outlined" startIcon={<OpenInNewIcon />} href={tk?.kiosk_token ? tableUrl(tk.kiosk_token) : '#'} target="_blank" disabled={!tk?.kiosk_token} title={t('kioskHint')}>
                     {t('openKiosk')}
                   </GlassButton>
                   <GlassButton size="small" variant="text" startIcon={<ContentCopyIcon />} onClick={() => void copy(url)} disabled={!url}>

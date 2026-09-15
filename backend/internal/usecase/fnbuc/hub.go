@@ -9,11 +9,13 @@ import (
 	"github.com/svdev/pos/internal/domain"
 )
 
-// Event is what the kitchen, the floor and a table's own screen hear about: an order changed.
-// The whole order rides along so a listener never has to make a second call.
+// Event is what the kitchen, the floor and a table's own screen hear about: an order changed,
+// or a table got a new customer code. The whole order rides along so a listener never has to
+// make a second call.
 type Event struct {
-	Kind  string        `json:"kind"` // created | updated
-	Order *domain.Order `json:"order"`
+	Kind  string        `json:"kind"` // created | updated | table
+	Order *domain.Order `json:"order,omitempty"`
+	Table *TableToken   `json:"table,omitempty"`
 }
 
 // hub fans events out per store. In-process only: one API container serves every till, and a

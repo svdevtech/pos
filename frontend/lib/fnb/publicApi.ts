@@ -11,6 +11,9 @@ export interface TableView {
   table_code: string;
   menu: MenuView;
   orders: Order[];
+  /** True when the tablet's own address opened the page; guest_token is then the code to show as a QR. */
+  kiosk: boolean;
+  guest_token?: string;
 }
 
 const base = (token: string) => `/api/v1/public/fnb/t/${encodeURIComponent(token)}`;
@@ -38,6 +41,8 @@ export const tableApi = {
   streamUrl: (token: string) => `${base(token)}/stream`,
 };
 
-/** The URL a QR carries. Built on the client from the page's own origin, so it survives a domain change. */
-export const tableUrl = (token: string, kiosk = false) =>
-  `${typeof window === 'undefined' ? '' : window.location.origin}/t/${encodeURIComponent(token)}${kiosk ? '?kiosk=1' : ''}`;
+/**
+ * The URL a QR carries. Built on the client from the page's own origin, so it survives a domain
+ * change. The same route serves the tablet fixed to the table when given its kiosk token.
+ */
+export const tableUrl = (token: string) => `${typeof window === 'undefined' ? '' : window.location.origin}/t/${encodeURIComponent(token)}`;

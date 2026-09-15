@@ -220,13 +220,19 @@ export function FnbProvider({ children }: { children: ReactNode }) {
     return subscribeOrders(
       token,
       (ev) => {
+        const order = ev.order;
+        if (ev.kind === 'table' || !order) {
+          // a table got a new customer code: the QR page redraws it
+          void qc.invalidateQueries({ queryKey: fnbKeys.tables });
+          return;
+        }
         qc.setQueryData<ApiOrder[]>(fnbKeys.orders(true), (cur) => {
           const list = cur ?? [];
-          const i = list.findIndex((o) => o.id === ev.order.id);
-          const keep = ev.order.status === 'open' || ev.order.status === 'paid';
-          if (i === -1) return keep ? [...list, ev.order] : list;
+          const i = list.findIndex((o) => o.id === order.id);
+          const keep = order.status === 'open' || order.status === 'paid';
+          if (i === -1) return keep ? [...list, order] : list;
           const next = [...list];
-          if (keep) next[i] = ev.order;
+          if (keep) next[i] = order;
           else next.splice(i, 1);
           return next;
         });

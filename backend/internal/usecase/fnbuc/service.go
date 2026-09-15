@@ -512,6 +512,7 @@ func (s *Service) SetStatus(ctx context.Context, storeID uuid.UUID, actor Actor,
 		return nil, domain.ErrValidation.With("field", "status")
 	}
 	var out *domain.Order
+	var rotated *TableToken
 	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
 		cur, err := s.repo.GetOrder(ctx, storeID, id)
 		if err != nil {
@@ -526,11 +527,31 @@ func (s *Service) SetStatus(ctx context.Context, storeID uuid.UUID, actor Actor,
 		if err := s.repo.InsertEvent(ctx, storeID, id, nil, "order:"+string(status), nil, actor.idPtr()); err != nil {
 			return err
 		}
-		out, err = s.repo.GetOrder(ctx, storeID, id)
-		return err
+		if out, err = s.repo.GetOrder(ctx, storeID, id); err != nil {
+			return err
+		}
+		// the last bill on a table closing ends the customers' session: the code on their phones
+		// stops working, and the tablet on the table shows the next party a fresh one
+		if (status == domain.OrderClosed || status == domain.OrderVoid) && out.TableCode != "" {
+			live, err := s.repo.ListOrdersForTable(ctx, storeID, out.TableCode)
+			if err != nil {
+				return err
+			}
+			if len(live) == 0 {
+				r, err := s.repo.EnsureTableToken(ctx, storeID, out.TableCode, true)
+				if err != nil {
+					return err
+				}
+				rotated = tokenOf(r)
+			}
+		}
+		return nil
 	})
 	if err == nil {
 		s.hub.Publish(storeID, Event{Kind: "updated", Order: out})
+		if rotated != nil {
+			s.hub.Publish(storeID, Event{Kind: "table", Table: rotated})
+		}
 	}
 	return out, err
 }
@@ -539,11 +560,18 @@ func (s *Service) SetStatus(ctx context.Context, storeID uuid.UUID, actor Actor,
 // Tables: the QR a customer scans, and the tablet that lives on the table
 // ---------------------------------------------------------------------------
 
-// TableToken is one table's public handle. The URL the QR carries is /t/<token>.
+// TableToken is one table's public handles. The QR customers scan carries /t/<token>, and that
+// code is replaced every time the table is closed; the tablet fixed to the table opens
+// /t/<kiosk_token>, which never changes — it is told the new customer code over its stream.
 type TableToken struct {
-	TableCode string `json:"table_code"`
-	Token     string `json:"token"`
-	IsActive  bool   `json:"is_active"`
+	TableCode  string `json:"table_code"`
+	Token      string `json:"token"`
+	KioskToken string `json:"kiosk_token,omitempty"`
+	IsActive   bool   `json:"is_active"`
+}
+
+func tokenOf(r *postgres.TableTokenRow) *TableToken {
+	return &TableToken{TableCode: r.TableCode, Token: r.Token, KioskToken: r.KioskToken, IsActive: r.IsActive}
 }
 
 // TableTokens lists every table's token, making one for any table code asked for that has none.
@@ -559,8 +587,8 @@ func (s *Service) TableTokens(ctx context.Context, storeID uuid.UUID, ensure []s
 		if err != nil {
 			return err
 		}
-		for _, r := range rows {
-			out = append(out, TableToken{TableCode: r.TableCode, Token: r.Token, IsActive: r.IsActive})
+		for i := range rows {
+			out = append(out, *tokenOf(&rows[i]))
 		}
 		return nil
 	})
@@ -570,7 +598,9 @@ func (s *Service) TableTokens(ctx context.Context, storeID uuid.UUID, ensure []s
 	return out, err
 }
 
-// RotateTableToken replaces a table's token: a printed card with the old code stops working.
+// RotateTableToken replaces a table's customer code by hand (it also happens by itself when the
+// table is closed): whoever kept the old one can no longer order, and the tablet on the table
+// hears the new one at once.
 func (s *Service) RotateTableToken(ctx context.Context, storeID uuid.UUID, tableCode string) (*TableToken, error) {
 	tableCode = strings.TrimSpace(tableCode)
 	if tableCode == "" {
@@ -582,9 +612,12 @@ func (s *Service) RotateTableToken(ctx context.Context, storeID uuid.UUID, table
 		if err != nil {
 			return err
 		}
-		out = &TableToken{TableCode: r.TableCode, Token: r.Token, IsActive: r.IsActive}
+		out = tokenOf(r)
 		return nil
 	})
+	if err == nil {
+		s.hub.Publish(storeID, Event{Kind: "table", Table: out})
+	}
 	return out, err
 }
 
@@ -596,23 +629,31 @@ type TableView struct {
 	TableCode string         `json:"table_code"`
 	Menu      *MenuView      `json:"menu"`
 	Orders    []domain.Order `json:"orders"`
+	// Kiosk is true when the tablet's own address opened the page; GuestToken is then the
+	// current customer code for it to show as a QR. A customer's phone never sees it.
+	Kiosk      bool   `json:"kiosk"`
+	GuestToken string `json:"guest_token,omitempty"`
 }
 
-// resolveToken finds the store and table behind a public token. Bypasses RLS for the lookup
-// only; everything after runs scoped to that store like any other request.
-func (s *Service) resolveToken(ctx context.Context, token string) (uuid.UUID, string, error) {
-	var storeID uuid.UUID
-	var code string
+// resolveToken finds the store and table behind a public token, and whether it was the kiosk's.
+// Bypasses RLS for the lookup only; everything after runs scoped to that store like any other
+// request.
+func (s *Service) resolveToken(ctx context.Context, token string) (uuid.UUID, string, bool, error) {
+	var row *postgres.TableTokenRow
+	var kiosk bool
 	err := s.db.WithTx(ctx, postgres.Scope{Bypass: true}, func(ctx context.Context, _ pgx.Tx) error {
 		var err error
-		storeID, code, err = s.repo.TableByToken(ctx, token)
+		row, kiosk, err = s.repo.TableByToken(ctx, token)
 		return err
 	})
-	return storeID, code, err
+	if err != nil {
+		return uuid.Nil, "", false, err
+	}
+	return row.StoreID, row.TableCode, kiosk, nil
 }
 
 func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, error) {
-	storeID, code, err := s.resolveToken(ctx, token)
+	storeID, code, kiosk, err := s.resolveToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -631,13 +672,20 @@ func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, e
 		}
 	}
 	menu.Items = items
-	out := &TableView{StoreID: storeID, TableCode: code, Menu: menu}
+	out := &TableView{StoreID: storeID, TableCode: code, Menu: menu, Kiosk: kiosk}
 	err = s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
 		st, err := s.stores.Get(ctx, storeID)
 		if err != nil {
 			return err
 		}
 		out.StoreName = st.Name
+		if kiosk {
+			r, err := s.repo.EnsureTableToken(ctx, storeID, code, false)
+			if err != nil {
+				return err
+			}
+			out.GuestToken = r.Token
+		}
 		out.Orders, err = s.repo.ListOrdersForTable(ctx, storeID, code)
 		return err
 	})
@@ -649,7 +697,7 @@ func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, e
 
 // TableOrders is the table's open orders, for the phone that keeps watching its food.
 func (s *Service) TableOrders(ctx context.Context, token string) ([]domain.Order, error) {
-	storeID, code, err := s.resolveToken(ctx, token)
+	storeID, code, _, err := s.resolveToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +715,7 @@ func (s *Service) TableOrders(ctx context.Context, token string) ([]domain.Order
 // TableCreateOrder is an order placed from the table itself. The channel and the table come
 // from the token, never from the request, and only self-order items are accepted.
 func (s *Service) TableCreateOrder(ctx context.Context, token string, lines []LineInput, note string) (*domain.Order, error) {
-	storeID, code, err := s.resolveToken(ctx, token)
+	storeID, code, _, err := s.resolveToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -691,9 +739,11 @@ func (s *Service) TableCreateOrder(ctx context.Context, token string, lines []Li
 	return s.CreateOrder(ctx, storeID, Actor{Name: "table " + code}, CreateOrderInput{Channel: domain.ChannelSelfOrder, TableCode: code, Note: note, Lines: lines})
 }
 
-// SubscribeTable is the table's own event feed: only its orders, for the phone on the table.
+// SubscribeTable is the table's own event feed: only its orders, plus the moment its customer
+// code changes. The tablet hears the new code so it can show it; a customer's phone only hears
+// that its session is over.
 func (s *Service) SubscribeTable(ctx context.Context, token string) (<-chan Event, error) {
-	storeID, code, err := s.resolveToken(ctx, token)
+	storeID, code, kiosk, err := s.resolveToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -702,11 +752,18 @@ func (s *Service) SubscribeTable(ctx context.Context, token string) (<-chan Even
 	go func() {
 		defer close(out)
 		for ev := range src {
-			if ev.Order != nil && ev.Order.TableCode == code {
-				select {
-				case out <- ev:
-				default:
+			switch {
+			case ev.Order != nil && ev.Order.TableCode == code:
+			case ev.Table != nil && ev.Table.TableCode == code:
+				if !kiosk {
+					ev = Event{Kind: ev.Kind, Table: &TableToken{TableCode: code}}
 				}
+			default:
+				continue
+			}
+			select {
+			case out <- ev:
+			default:
 			}
 		}
 	}()
