@@ -19,5 +19,6 @@ func wireModules(_ context.Context, cfg *config.Config, log *slog.Logger, db *po
 	wireDividends(db, cfg, &deps)
 	wireAI(db, cfg, &deps)
 	wireDataOps(db, cfg, log, &deps)
+	wireFnb(db, cfg, &deps)
 	return deps
 }

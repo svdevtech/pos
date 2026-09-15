@@ -37,6 +37,7 @@ type Deps struct {
 	Liff      LiffService
 	DataOps   DataOpsService
 	Promo     PromotionService
+	Fnb       FnbService
 }
 
 type Server struct {
@@ -98,6 +99,7 @@ func (s *Server) routes() chi.Router {
 				s.mountAI(r)
 				s.mountLiff(r)
 				s.mountDataOps(r)
+				s.mountFnb(r)
 			})
 		})
 	})

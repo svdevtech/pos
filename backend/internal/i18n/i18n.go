@@ -123,6 +123,11 @@ var th = map[string]string{
 
 	"SALE_EMPTY":               "ไม่มีรายการสินค้าในบิล",
 	"SALE_NOT_FOUND":           "ไม่พบบิลขาย",
+	"MENU_ITEM_NOT_FOUND":      "ไม่พบเมนูนี้",
+	"MODIFIER_INVALID":         "ตัวเลือกไม่ถูกต้องหรือเลือกไม่ครบตามที่เมนูกำหนด",
+	"ORDER_NOT_FOUND":          "ไม่พบออร์เดอร์",
+	"ORDER_CLOSED":             "ออร์เดอร์นี้ปิดแล้ว แก้ไขไม่ได้",
+	"ORDER_EMPTY":              "ออร์เดอร์ไม่มีรายการ",
 	"SALE_ALREADY_CANCELLED":   "บิลนี้ถูกยกเลิกไปแล้ว",
 	"SALE_PAYMENT_SHORT":       "ยอดชำระไม่ครบ ขาดอีก {short} บาท",
 	"SALE_CREDIT_NEEDS_MEMBER": "การขายเชื่อต้องระบุสมาชิก",
@@ -202,6 +207,11 @@ var en = map[string]string{
 
 	"SALE_EMPTY":               "The bill has no items",
 	"SALE_NOT_FOUND":           "Sale not found",
+	"MENU_ITEM_NOT_FOUND":      "Menu item not found",
+	"MODIFIER_INVALID":         "An option is invalid or a required choice is missing",
+	"ORDER_NOT_FOUND":          "Order not found",
+	"ORDER_CLOSED":             "This order is closed and cannot be changed",
+	"ORDER_EMPTY":              "The order has no items",
 	"SALE_ALREADY_CANCELLED":   "This sale is already cancelled",
 	"SALE_PAYMENT_SHORT":       "Payment is short by {short}",
 	"SALE_CREDIT_NEEDS_MEMBER": "Credit sales require a member",

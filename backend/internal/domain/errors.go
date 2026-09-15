@@ -102,10 +102,17 @@ var (
 	ErrLinkCodeInvalid   = NewError("MEMBER_LINK_CODE_INVALID", http.StatusBadRequest)
 	ErrShareInsufficient = NewError("MEMBER_SHARE_INSUFFICIENT", http.StatusBadRequest)
 
-	ErrSaleEmpty             = NewError("SALE_EMPTY", http.StatusBadRequest)
-	ErrSaleNotFound          = NewError("SALE_NOT_FOUND", http.StatusNotFound)
-	ErrSaleAlreadyCancelled  = NewError("SALE_ALREADY_CANCELLED", http.StatusConflict)
-	ErrSalePaymentShort      = NewError("SALE_PAYMENT_SHORT", http.StatusBadRequest)
+	ErrSaleEmpty            = NewError("SALE_EMPTY", http.StatusBadRequest)
+	ErrSaleNotFound         = NewError("SALE_NOT_FOUND", http.StatusNotFound)
+	ErrSaleAlreadyCancelled = NewError("SALE_ALREADY_CANCELLED", http.StatusConflict)
+	ErrSalePaymentShort     = NewError("SALE_PAYMENT_SHORT", http.StatusBadRequest)
+
+	// F&B
+	ErrMenuItemNotFound      = NewError("MENU_ITEM_NOT_FOUND", http.StatusNotFound)
+	ErrModifierInvalid       = NewError("MODIFIER_INVALID", http.StatusBadRequest)
+	ErrOrderNotFound         = NewError("ORDER_NOT_FOUND", http.StatusNotFound)
+	ErrOrderClosed           = NewError("ORDER_CLOSED", http.StatusConflict)
+	ErrOrderEmpty            = NewError("ORDER_EMPTY", http.StatusBadRequest)
 	ErrSaleCreditNeedsMember = NewError("SALE_CREDIT_NEEDS_MEMBER", http.StatusBadRequest)
 	ErrSaleSerialRequired    = NewError("SALE_SERIAL_REQUIRED", http.StatusBadRequest)
 	ErrStockInsufficient     = NewError("STOCK_INSUFFICIENT", http.StatusBadRequest)
