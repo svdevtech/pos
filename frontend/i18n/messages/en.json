@@ -83,7 +83,32 @@
     "sessionExpired": "Your session has expired, please sign in again",
     "loggedInAs": "Signed in as",
     "signOut": "Sign out",
-    "storeCodeFromDevice": "This device's default — change it to sign in to another store"
+    "storeCodeFromDevice": "This device's default — change it to sign in to another store",
+    "show": {
+      "tag": "Retail · Restaurant · Café",
+      "tagline1": "Every screen in the shop",
+      "tagline2": "live, right here",
+      "taglineSub": "Counter · kitchen · floor · table QR · dashboard — connected in real time",
+      "table": "Table",
+      "waiting": "Queued",
+      "preparing": "Cooking",
+      "done": "Done",
+      "doneAll": "All done",
+      "floorTonight": "Floor · tonight",
+      "sampleShop": "Sample shop",
+      "item1": "Latte · oat milk",
+      "item2": "Pad thai, prawns",
+      "item3": "Basil rice · extra hot",
+      "rc1": "Water ×2",
+      "rc2": "Bread",
+      "rc3": "Instant noodles ×3",
+      "total": "Total",
+      "cash": "Cash",
+      "change": "Change",
+      "todaySales": "Today's sales",
+      "scanToOrder": "scan to order",
+      "qrRotates": "New code every time the table is closed"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",
