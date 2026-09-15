@@ -28,6 +28,11 @@ export default function FloorPlan3DFrame({ floor, statusOf, selectedId, onSelect
     const statuses = Object.fromEntries(floor.tables.map((t) => [t.id, statusOf(t.id)]));
     w.postMessage({ type: 'state', floor, statuses, selectedId }, '*');
   };
+  // the scene asks for its first state whenever it finishes loading, which is usually after the
+  // room has arrived from the API; the listener below is registered once, so it must reach for
+  // this render's send, not the empty one it closed over on the first render
+  const latest = useRef(send);
+  latest.current = send;
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
@@ -35,7 +40,7 @@ export default function FloorPlan3DFrame({ floor, statusOf, selectedId, onSelect
       const m = e.data as { type?: string; id?: string; fps?: number };
       if (m?.type === 'ready') {
         ready.current = true;
-        send();
+        latest.current();
       } else if (m?.type === 'select' && m.id) {
         cb.current.onSelect(m.id);
       } else if (m?.type === 'fps' && typeof m.fps === 'number') {
