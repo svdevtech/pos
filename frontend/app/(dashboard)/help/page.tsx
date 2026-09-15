@@ -5,6 +5,7 @@ import HelpView, { type HelpDoc } from '@/components/help/HelpView';
 // Manuals are shipped inside the image (see npm run docs:sync).
 const FILES: { id: string; labelKey: string; file: string }[] = [
   { id: 'user-guide', labelKey: 'userGuide', file: 'user-guide.md' },
+  { id: 'fnb-user-guide', labelKey: 'fnbGuide', file: 'fnb-user-guide.md' },
   { id: 'dividend-math', labelKey: 'dividendMath', file: 'dividend-math.md' },
 ];
 

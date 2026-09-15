@@ -33,3 +33,6 @@ frontend/test-results/
 test-results/
 frontend/tests/live/multi-store-report.json
 legacy-kaen*/
+
+# generated from the manuals: npm run docs:pdf
+/docs/pdf/

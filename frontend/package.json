@@ -12,7 +12,8 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "test:e2e": "playwright test",
     "docs:sync": "node scripts/sync-docs.mjs",
-    "docs:capture": "node scripts/capture-docs.mjs"
+    "docs:capture": "node scripts/capture-docs.mjs",
+    "docs:pdf": "node scripts/docs-pdf.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

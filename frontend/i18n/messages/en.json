@@ -1615,7 +1615,8 @@
     "backToDashboard": "Back to dashboard",
     "docs": {
       "userGuide": "User guide",
-      "dividendMath": "Dividend formulas"
+      "dividendMath": "Dividend formulas",
+      "fnbGuide": "Restaurant / café guide"
     }
   },
   "ai": {
@@ -1646,7 +1647,7 @@
     "sqlCopied": "Query copied"
   },
   "fnb": {
-    "title": "Restaurant / café (prototype)",
+    "title": "Restaurant / Café",
     "order": "Counter order",
     "kitchen": "Kitchen display",
     "floor": "Floor plan",
@@ -1704,11 +1705,9 @@
     "tableOrders": "Orders for this table",
     "nothingYet": "Nothing ordered yet",
     "paid": "Paid",
-    "resetDemo": "Reset demo data",
     "callNumber": "Call number",
     "nowServing": "Preparing",
     "pickUp": "Ready to collect",
-    "prototypeNote": "Prototype — data lives in this browser. Open the kitchen display in a second tab to watch orders cross screens.",
     "tablesQr": "Table QR",
     "tablesQrHint": "The customer QR changes by itself every time the table is closed (so a photo of it cannot order from elsewhere) — show it on the table's tablet (“Open the table screen” is the tablet's permanent link) or print it as a slip for the table when a party is seated",
     "openKiosk": "Open the table screen",

@@ -9,6 +9,7 @@ const docs = resolve(here, '../../docs');
 const out = resolve(here, '../content/help');
 const FILES = [
   ['USER_GUIDE.md', 'user-guide.md'],
+  ['FNB_USER_GUIDE.md', 'fnb-user-guide.md'],
   ['DIVIDEND_MATH.md', 'dividend-math.md'],
 ];
 
