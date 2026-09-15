@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3010",
     "build": "next build",
+    "build:fnb3d": "cd fnb3d && npm ci && npm run build",
     "start": "next start -p 3010",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
