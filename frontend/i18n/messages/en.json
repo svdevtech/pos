@@ -113,6 +113,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "pos": "POS",
+    "fnb": "Restaurant / café",
     "products": "Products",
     "inventory": "Inventory",
     "stockCheck": "Stock check",

@@ -16,6 +16,7 @@ import Tooltip from '@mui/material/Tooltip';
 import PersonIcon from '@mui/icons-material/Person';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SavingsIcon from '@mui/icons-material/Savings';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -45,7 +46,9 @@ import Link from 'next/link';
 import AppFooter from '@/components/AppFooter';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Role } from '@/lib/auth/session';
+import { fnbApi, fnbKeys } from '@/lib/fnb/api';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useSession } from './Providers';
 
@@ -67,6 +70,7 @@ type NavKey =
   | 'expenses'
   | 'reports'
   | 'dividends'
+  | 'fnb'
   | 'settings'
   | 'ai'
   | 'stores'
@@ -104,6 +108,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'settings', href: '/settings', icon: <SettingsIcon />, roles: BACK_OFFICE },
   { key: 'help', href: '/help', icon: <MenuBookIcon /> },
 ];
+
+/** Slotted in after the till for a shop that has a menu; see usesFnb below. */
+const FNB_ITEM: NavItem = { key: 'fnb', href: '/fnb/order', icon: <RestaurantIcon />, roles: SELLERS };
 
 const ADMIN_ITEMS: NavItem[] = [
   { key: 'stores', href: '/admin/stores', icon: <StorefrontIcon />, roles: ['platform_admin'] },
@@ -146,7 +153,14 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   };
 
   const visible = (items: NavItem[]) => items.filter((i) => !i.roles || hasRole(...i.roles));
-  const storeItems = isPlatformAdmin && !store ? [] : visible(NAV_ITEMS);
+  // the restaurant screens are their own workspace and only make sense once a shop has a menu,
+  // so the link appears for the shops that use them and stays out of the way of the others
+  const fnbMenu = useQuery({ queryKey: fnbKeys.menu, queryFn: () => fnbApi.menu(), staleTime: 10 * 60_000, retry: false, enabled: Boolean(store) });
+  const usesFnb = (fnbMenu.data?.items.length ?? 0) > 0;
+  const items = usesFnb
+    ? NAV_ITEMS.flatMap((i) => (i.key === 'pos' ? [i, FNB_ITEM] : [i]))
+    : NAV_ITEMS;
+  const storeItems = isPlatformAdmin && !store ? [] : visible(items);
   const adminItems = visible(ADMIN_ITEMS);
 
   const storeName = store ? (locale === 'en' && store.name_en ? store.name_en : store.name) : null;
