@@ -95,6 +95,12 @@ interface Api {
   orders: Order[];
   nextQueue: number;
   placeOrder: (lines: CartLine[], channel: Channel, opts?: { tableId?: string; guests?: number }) => Promise<Order>;
+  /** Seats a party: the table turns "seated" (and its QR may take orders) before anything is ordered. */
+  openTable: (tableId: string, guests?: number) => Promise<Order>;
+  /** Moves everything on one table to another; an occupied target merges the two. */
+  moveTable: (fromTableId: string, toTableId: string) => Promise<void>;
+  /** The chosen lines become a new order on the same table, returned for its own checkout. */
+  splitOrder: (orderId: string, itemIds: string[]) => Promise<Order>;
   setItemStatus: (orderId: string, itemId: string, status: ItemStatus) => Promise<void>;
   /** Every item of a station's tickets in one go — the bump bar's "all done". */
   bumpOrder: (orderId: string, stationId: string, status: ItemStatus) => Promise<void>;
@@ -328,11 +334,12 @@ export function FnbProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: fnbKeys.orders(true) }), [qc]);
 
   const create = useMutation({
-    mutationFn: (v: { lines: CartLine[]; channel: Channel; tableId?: string; guests?: number }) =>
+    mutationFn: (v: { lines: CartLine[]; channel: Channel; tableId?: string; guests?: number; openTable?: boolean }) =>
       fnbApi.createOrder({
         channel: v.channel,
         table_code: v.tableId ? floor.tableById[v.tableId]?.name : undefined,
         guests: v.guests,
+        open_table: v.openTable,
         lines: v.lines.map((l) => ({ menu_item_id: l.menuItemId, qty: l.qty, modifier_ids: l.modifierIds, note: l.note })),
       }),
     onSuccess: () => void refresh(),
@@ -375,6 +382,19 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       orders,
       nextQueue: todayMax + 1,
       placeOrder: async (lines, channel, opts = {}) => toOrder(await create.mutateAsync({ lines, channel, ...opts }), menu, floor.tableByCode),
+      openTable: async (tableId, guests) => toOrder(await create.mutateAsync({ lines: [], channel: 'dine_in', tableId, guests, openTable: true }), menu, floor.tableByCode),
+      moveTable: async (fromId, toId) => {
+        const from = floor.tableById[fromId]?.name;
+        const to = floor.tableById[toId]?.name;
+        if (!from || !to) throw new Error('table');
+        await fnbApi.moveTable(from, to);
+        await refresh();
+      },
+      splitOrder: async (orderId, itemIds) => {
+        const o = await fnbApi.splitOrder(orderId, itemIds);
+        await refresh();
+        return toOrder(o, menu, floor.tableByCode);
+      },
       setItemStatus: async (orderId, itemId, status) => {
         await itemStatus.mutateAsync({ orderId, itemId, status });
       },

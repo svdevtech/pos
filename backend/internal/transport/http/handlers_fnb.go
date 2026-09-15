@@ -39,6 +39,8 @@ type FnbService interface {
 	Floor(ctx context.Context, storeID uuid.UUID, activeOnly bool) (*fnbuc.FloorView, error)
 	SaveZone(ctx context.Context, storeID uuid.UUID, z domain.FloorZone) (*domain.FloorZone, error)
 	SaveTable(ctx context.Context, storeID uuid.UUID, t domain.FloorTable) (*domain.FloorTable, error)
+	MoveTable(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, from, to string) ([]domain.Order, error)
+	SplitOrder(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, orderID uuid.UUID, itemIDs []uuid.UUID) (*domain.Order, error)
 }
 
 // streamEvents writes order events as server-sent events until the client goes away. A comment
@@ -257,6 +259,43 @@ func (s *Server) mountFnb(r chi.Router) {
 				return
 			}
 			ok(w, out)
+		})
+
+		// ---- a party moves (or two tables merge); a bill is split
+		r.With(requireRole(rolesSell...)).Post("/tables/{code}/move", func(w http.ResponseWriter, r *http.Request) {
+			var in struct {
+				To string `json:"to"`
+			}
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.MoveTable(r.Context(), storeID(r), fnbActor(r), chi.URLParam(r, "code"), in.To)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesSell...)).Post("/orders/{id}/split", func(w http.ResponseWriter, r *http.Request) {
+			id, err := uuid.Parse(chi.URLParam(r, "id"))
+			if err != nil {
+				fail(w, r, domain.ErrValidation.With("field", "id"))
+				return
+			}
+			var in struct {
+				ItemIDs []uuid.UUID `json:"item_ids"`
+			}
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SplitOrder(r.Context(), storeID(r), fnbActor(r), id, in.ItemIDs)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			created(w, out)
 		})
 
 		// ---- checkout: the orders become a bill in the sales module

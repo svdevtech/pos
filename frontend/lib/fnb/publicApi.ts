@@ -14,6 +14,9 @@ export interface TableView {
   /** True when the tablet's own address opened the page; guest_token is then the code to show as a QR. */
   kiosk: boolean;
   guest_token?: string;
+  /** The shop takes QR orders only from a table staff opened; `open` says whether this one is. */
+  requires_open: boolean;
+  open: boolean;
 }
 
 const base = (token: string) => `/api/v1/public/fnb/t/${encodeURIComponent(token)}`;

@@ -1,7 +1,9 @@
 'use client';
 
 import Box from '@mui/material/Box';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItemOption from '@mui/material/MenuItem';
+import Switch from '@mui/material/Switch';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,6 +21,8 @@ interface FnbSettings {
   service_charge_pct: string;
   vat_mode: 'none' | 'included' | 'excluded';
   vat_pct: string;
+  /** QR orders only from a table staff opened, so a photographed QR cannot order at an empty table. */
+  qr_requires_open_table: boolean;
 }
 
 const read = (raw: unknown): FnbSettings => {
@@ -31,6 +35,7 @@ const read = (raw: unknown): FnbSettings => {
     service_charge_pct: num(v.service_charge_pct, '0'),
     vat_mode: vat === 'included' || vat === 'excluded' ? vat : 'none',
     vat_pct: num(v.vat_pct, '7'),
+    qr_requires_open_table: v.qr_requires_open_table === true,
   };
 };
 
@@ -49,7 +54,7 @@ export default function ShopSettings() {
 
   const submit = () => {
     const cur = settings.data ?? {};
-    const fnb = { ...((cur.fnb as Record<string, unknown> | undefined) ?? {}), deduct_on: form.deduct_on, service_charge_pct: Number(form.service_charge_pct) || 0, vat_mode: form.vat_mode, vat_pct: Number(form.vat_pct) || 0 };
+    const fnb = { ...((cur.fnb as Record<string, unknown> | undefined) ?? {}), deduct_on: form.deduct_on, service_charge_pct: Number(form.service_charge_pct) || 0, vat_mode: form.vat_mode, vat_pct: Number(form.vat_pct) || 0, qr_requires_open_table: form.qr_requires_open_table };
     save.mutate(
       { ...cur, fnb },
       {
@@ -93,6 +98,12 @@ export default function ShopSettings() {
               {t('vatHint')}
             </Typography>
           </Stack>
+        </GlassCard>
+        <GlassCard title={t('qrRules')}>
+          <FormControlLabel control={<Switch checked={form.qr_requires_open_table} onChange={(_, on) => setForm({ ...form, qr_requires_open_table: on })} data-testid="cfg-qr-gate" />} label={t('qrRequiresOpen')} />
+          <Typography variant="caption" color="text.secondary" display="block">
+            {t('qrRequiresOpenHint')}
+          </Typography>
         </GlassCard>
         <Box>
           <GlassButton onClick={submit} loading={save.isPending} disabled={settings.isPending} data-testid="cfg-save-shop">

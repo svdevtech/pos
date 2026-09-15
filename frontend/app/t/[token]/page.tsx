@@ -70,7 +70,7 @@ export default function TablePage() {
         if (ev.kind === 'table') {
           const fresh = ev.table?.token;
           if (fresh) {
-            setView((v) => (v ? { ...v, guest_token: fresh } : v));
+            setView((v) => (v ? { ...v, guest_token: fresh, open: false } : v));
             setOrders([]);
             setCart([]);
             setSentAt(null);
@@ -83,6 +83,8 @@ export default function TablePage() {
         }
         const order = ev.order;
         if (!order) return;
+        // any order on the table means staff opened it (or someone ordered): the menu unlocks
+        if (order.status === 'open' || order.status === 'paid') setView((v) => (v && !v.open ? { ...v, open: true } : v));
         setOrders((cur) => {
           const i = cur.findIndex((o) => o.id === order.id);
           const keep = order.status === 'open' || order.status === 'paid';
@@ -153,6 +155,22 @@ export default function TablePage() {
       </Box>
     );
   }
+  const locked = Boolean(view?.requires_open && !view?.open);
+  if (locked && view && !view.kiosk) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+        <Box sx={{ textAlign: 'center' }} data-testid="t-locked">
+          <Typography variant="h5" fontWeight={800} gutterBottom>
+            {view.store_name} · {t('table')} {view.table_code}
+          </Typography>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            {t('tableNotOpen')}
+          </Typography>
+          <Typography color="text.secondary">{t('tableNotOpenHint')}</Typography>
+        </Box>
+      </Box>
+    );
+  }
   if (error && !view) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
@@ -190,8 +208,8 @@ export default function TablePage() {
         <Typography variant="h5" fontWeight={800}>
           {t('scanToOrder')}
         </Typography>
-        <GlassButton size="large" variant="outlined" onClick={() => setOrdering(true)} data-testid="kiosk-order">
-          {t('orderHere')}
+        <GlassButton size="large" variant="outlined" onClick={() => setOrdering(true)} disabled={locked} data-testid="kiosk-order">
+          {locked ? t('waitingStaff') : t('orderHere')}
         </GlassButton>
         {orders.length > 0 && <OrderStatus orders={orders} t={t} locale={locale} />}
       </Box>

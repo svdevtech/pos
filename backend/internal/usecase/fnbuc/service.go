@@ -170,6 +170,10 @@ type CreateOrderInput struct {
 	Guests    int                 `json:"guests,omitempty"`
 	Note      string              `json:"note,omitempty"`
 	Lines     []LineInput         `json:"lines"`
+	// OpenTable seats a party before anything is ordered: an order with no lines on the table,
+	// which turns the table "seated" on the floor and lets its QR take orders when the shop
+	// requires an opened table for that.
+	OpenTable bool `json:"open_table,omitempty"`
 }
 
 // menuIndex is the menu the way CreateOrder needs it: by id.
@@ -236,7 +240,7 @@ func (s *Service) CreateOrder(ctx context.Context, storeID uuid.UUID, actor Acto
 	if !in.Channel.Valid() {
 		return nil, domain.ErrValidation.With("field", "channel")
 	}
-	if len(in.Lines) == 0 {
+	if len(in.Lines) == 0 && !(in.OpenTable && strings.TrimSpace(in.TableCode) != "") {
 		return nil, domain.ErrOrderEmpty
 	}
 	var out *domain.Order
@@ -645,6 +649,10 @@ type TableView struct {
 	// current customer code for it to show as a QR. A customer's phone never sees it.
 	Kiosk      bool   `json:"kiosk"`
 	GuestToken string `json:"guest_token,omitempty"`
+	// RequiresOpen: the shop takes QR orders only from a table staff opened; Open says whether
+	// this one is (any live order on it).
+	RequiresOpen bool `json:"requires_open"`
+	Open         bool `json:"open"`
 }
 
 // resolveToken finds the store and table behind a public token, and whether it was the kiosk's.
@@ -691,6 +699,8 @@ func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, e
 			return err
 		}
 		out.StoreName = st.Name
+		settings, _ := s.stores.GetSettings(ctx, storeID)
+		out.RequiresOpen = qrRequiresOpenTable(settings)
 		if kiosk {
 			r, err := s.repo.EnsureTableToken(ctx, storeID, code, false)
 			if err != nil {
@@ -699,6 +709,7 @@ func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, e
 			out.GuestToken = r.Token
 		}
 		out.Orders, err = s.repo.ListOrdersForTable(ctx, storeID, code)
+		out.Open = len(out.Orders) > 0
 		return err
 	})
 	if out.Orders == nil {
@@ -747,6 +758,24 @@ func (s *Service) TableCreateOrder(ctx context.Context, token string, lines []Li
 		if !allowed[l.MenuItemID] {
 			return nil, domain.ErrMenuItemNotFound
 		}
+	}
+	// the shop may take self-orders only from a table staff opened: a photographed QR then
+	// cannot order at an empty table from elsewhere
+	var gated bool
+	err = s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		settings, _ := s.stores.GetSettings(ctx, storeID)
+		if !qrRequiresOpenTable(settings) {
+			return nil
+		}
+		n, err := s.repo.LiveOrderCount(ctx, storeID, code)
+		gated = err == nil && n == 0
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if gated {
+		return nil, domain.ErrTableNotOpen
 	}
 	return s.CreateOrder(ctx, storeID, Actor{Name: "table " + code}, CreateOrderInput{Channel: domain.ChannelSelfOrder, TableCode: code, Note: note, Lines: lines})
 }

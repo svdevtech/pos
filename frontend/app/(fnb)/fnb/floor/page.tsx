@@ -1,8 +1,11 @@
 'use client';
 
 import AddIcon from '@mui/icons-material/Add';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
 import CloseIcon from '@mui/icons-material/Close';
+import EventSeatIcon from '@mui/icons-material/EventSeat';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import RemoveIcon from '@mui/icons-material/Remove';
 import SendIcon from '@mui/icons-material/Send';
 import Box from '@mui/material/Box';
@@ -19,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import FloorPlan2D from '@/components/fnb/FloorPlan2D';
 import FloorPlan3DFrame from '@/components/fnb/FloorPlan3DFrame';
 import { STATUS_COLOR } from '@/components/fnb/floorStatus';
+import { MoveTableDialog, SplitBillDialog } from '@/components/fnb/TableDialogs';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import ReceiptDialog from '@/components/pos/ReceiptPrint';
 import TenderDialog from '@/components/pos/TenderDialog';
@@ -56,7 +60,7 @@ export default function FloorPage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
   const toast = useToast();
-  const { menu, floor, tableStatus, ordersForTable, placeOrder, quote, checkout, closeTable, orderTotal } = useFnb();
+  const { menu, floor, tableStatus, ordersForTable, placeOrder, openTable, moveTable, splitOrder, quote, checkout, closeTable, orderTotal } = useFnb();
   const { tableById, zones } = floor;
 
   const [view, setView] = useState<'3d' | '2d'>('3d');
@@ -69,6 +73,9 @@ export default function FloorPage() {
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<{ saleId: string; change: number; autoPrint: boolean } | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const [working, setWorking] = useState(false);
 
   useEffect(() => setWebgl(hasWebGL()), []);
   // three consecutive seconds under 24 fps: this device is not going to manage 3D, stop trying
@@ -82,14 +89,36 @@ export default function FloorPage() {
   const status = selected ? tableStatus(selected) : 'free';
   const orders = selected ? ordersForTable(selected) : [];
   const total = orders.reduce((s, o) => s + orderTotal(o), 0);
-  const unpaid = orders.filter((o) => o.status === 'open');
-  const startCheckout = async () => {
+  const unpaid = orders.filter((o) => o.status === 'open' && o.items.some((i) => i.status !== 'void'));
+  const liveItems = unpaid.reduce((n, o) => n + o.items.filter((i) => i.status !== 'void').length, 0);
+  const startCheckout = async (ids = unpaid.map((o) => o.id)) => {
     try {
-      const q = await quote(unpaid.map((o) => o.id));
+      const q = await quote(ids);
       setPayError(null);
-      setTender({ ids: unpaid.map((o) => o.id), net: dec(q.net) });
+      setTender({ ids, net: dec(q.net) });
     } catch (e) {
       toast.error(String((e as Error)?.message ?? e));
+    }
+  };
+  // split: the ticked lines of each order become an order of their own (an order whose every
+  // line is ticked simply goes as it is), then those orders are paid together
+  const split = async (picked: Record<string, string[]>) => {
+    setWorking(true);
+    try {
+      const ids: string[] = [];
+      for (const o of unpaid) {
+        const chosen = picked[o.id] ?? [];
+        if (chosen.length === 0) continue;
+        const live = o.items.filter((i) => i.status !== 'void');
+        if (chosen.length === live.length) ids.push(o.id);
+        else ids.push((await splitOrder(o.id, chosen)).id);
+      }
+      setSplitting(false);
+      await startCheckout(ids);
+    } catch (e) {
+      toast.error(String((e as Error)?.message ?? e));
+    } finally {
+      setWorking(false);
     }
   };
   const counts = useMemo(() => {
@@ -189,9 +218,26 @@ export default function FloorPage() {
                 </Typography>
               </Stack>
               <Stack spacing={1}>
+                {status === 'free' && (
+                  <GlassButton size="large" variant="outlined" startIcon={<EventSeatIcon />} onClick={() => void openTable(table.id, table.seats).catch((e) => toast.error(String((e as Error)?.message ?? e)))} data-testid="table-seat">
+                    {t('seatOnly')}
+                  </GlassButton>
+                )}
                 <GlassButton size="large" startIcon={<AddIcon />} onClick={() => setOrdering(true)} data-testid="table-order">
-                  {status === 'free' ? t('openTable') : t('orderMore')}
+                  {status === 'free' ? t('orderNow') : t('orderMore')}
                 </GlassButton>
+                {status !== 'free' && (
+                  <Stack direction="row" spacing={1}>
+                    <GlassButton fullWidth variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => setMoving(true)} data-testid="table-move">
+                      {t('moveTable')}
+                    </GlassButton>
+                    {liveItems >= 2 && (
+                      <GlassButton fullWidth variant="outlined" startIcon={<CallSplitIcon />} onClick={() => setSplitting(true)} data-testid="table-split">
+                        {t('splitBill')}
+                      </GlassButton>
+                    )}
+                  </Stack>
+                )}
                 {unpaid.length > 0 && (
                   <GlassButton size="large" color="secondary" startIcon={<PaymentsIcon />} onClick={() => void startCheckout()} data-testid="table-checkout">
                     {t('checkout')} · {formatMoney(unpaid.reduce((s, o) => s + orderTotal(o), 0), locale)}
@@ -207,6 +253,27 @@ export default function FloorPage() {
           </Box>
         )}
       </Drawer>
+
+      {table && moving && (
+        <MoveTableDialog
+          from={table}
+          tables={floor.tables}
+          statusOf={tableStatus}
+          busy={working}
+          onClose={() => setMoving(false)}
+          onMove={(to) => {
+            setWorking(true);
+            moveTable(table.id, to.id)
+              .then(() => {
+                setMoving(false);
+                setSelected(to.id);
+              })
+              .catch((e) => toast.error(String((e as Error)?.message ?? e)))
+              .finally(() => setWorking(false));
+          }}
+        />
+      )}
+      {table && splitting && <SplitBillDialog orders={unpaid} busy={working} onClose={() => setSplitting(false)} onSplit={(picked) => void split(picked)} />}
 
       <TenderDialog
         open={Boolean(tender)}

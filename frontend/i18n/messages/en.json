@@ -1805,7 +1805,23 @@
       "vatIncluded": "Prices include VAT (shown on the bill)",
       "vatExcluded": "Prices exclude VAT (added at checkout)",
       "vatPct": "VAT %",
-      "vatHint": "Not registered: pick none · registered with menu prices that already include tax: pick included and the bill shows the tax part"
-    }
+      "vatHint": "Not registered: pick none · registered with menu prices that already include tax: pick included and the bill shows the tax part",
+      "qrRules": "QR ordering",
+      "qrRequiresOpen": "Customers can order by QR only at a table staff has opened",
+      "qrRequiresOpenHint": "Stops a photographed QR of an empty table ordering from elsewhere — staff press “Seat the party” on the floor plan (or take the first order) before the phone can order"
+    },
+    "seatOnly": "Seat the party (no order yet)",
+    "orderNow": "Take an order",
+    "moveTable": "Move / merge table",
+    "moveTableHint": "Pick the table to move to — every order on this table goes with it; an occupied target merges the two, and this table is freed with a new QR",
+    "mergeInto": "Merge into table {table}",
+    "splitBill": "Split bill",
+    "splitBillHint": "Tick what is being paid now; the rest stays with the table and can be paid later",
+    "splitAndPay": "Split and pay",
+    "queueScreen": "Queue screen",
+    "itemsShort": "items",
+    "tableNotOpen": "This table is not open yet",
+    "tableNotOpenHint": "Please ask a member of staff to open the table; this page will then take your order",
+    "waitingStaff": "Waiting for staff to open the table"
   }
 }

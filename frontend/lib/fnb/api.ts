@@ -158,6 +158,8 @@ export interface CreateOrderInput {
   guests?: number;
   note?: string;
   lines: LineInput[];
+  /** Seat a party before anything is ordered: an order with no lines on the table. */
+  open_table?: boolean;
 }
 
 export interface TableToken {
@@ -239,6 +241,10 @@ export const fnbApi = {
   floor: (all = false) => api.get<FloorView>(`/fnb/floor${all ? '?all=1' : ''}`),
   saveZone: (z: Partial<FloorZone>) => api.put<FloorZone>('/fnb/floor/zones', z),
   saveTable: (t: Partial<FloorTable>) => api.put<FloorTable>('/fnb/floor/tables', t),
+  /** Every live order of a table goes to another table; an occupied target merges them. */
+  moveTable: (from: string, to: string) => api.post<Order[]>(`/fnb/tables/${encodeURIComponent(from)}/move`, { to }),
+  /** The given lines become a new order on the same table, to be paid on their own. */
+  splitOrder: (orderId: string, itemIds: string[]) => api.post<Order>(`/fnb/orders/${orderId}/split`, { item_ids: itemIds }),
   quote: (orderIds: string[]) => api.get<CheckoutQuote>(`/fnb/checkout/quote?ids=${encodeURIComponent(orderIds.join(','))}`),
   /** The orders become one bill in the sales module; the sale comes back for the receipt. */
   checkout: (input: CheckoutInput) => api.post<Sale>('/fnb/checkout', input),
