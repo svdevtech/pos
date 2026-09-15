@@ -22,7 +22,7 @@ import { STATUS_COLOR } from '@/components/fnb/floorStatus';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
-import { categories, menu, modifierById, tableById, zones } from '@/lib/fnb/mock';
+import { tableById, zones, type Category, type MenuItem } from '@/lib/fnb/mock';
 import { useFnb, type CartLine, type TableStatus } from '@/lib/fnb/store';
 
 
@@ -51,7 +51,7 @@ const STATUS_KEY: Record<TableStatus, 'free' | 'seated' | 'waiting' | 'readyTabl
 export default function FloorPage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
-  const { tableStatus, ordersForTable, placeOrder, payOrder, closeTable, orderTotal, reset } = useFnb();
+  const { menu, tableStatus, ordersForTable, placeOrder, payOrder, closeTable, orderTotal } = useFnb();
 
   const [view, setView] = useState<'3d' | '2d'>('3d');
   const [webgl, setWebgl] = useState<boolean | null>(null);
@@ -95,9 +95,6 @@ export default function FloorPage() {
           </ToggleButton>
           <ToggleButton value="2d">{t('view2d')}</ToggleButton>
         </ToggleButtonGroup>
-        <GlassButton size="small" variant="text" color="inherit" onClick={reset}>
-          {t('resetDemo')}
-        </GlassButton>
       </Stack>
 
       <Box sx={{ flex: 1, minHeight: 0, borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
@@ -146,9 +143,9 @@ export default function FloorPage() {
                           <Typography fontWeight={600} noWrap>
                             {it.emoji} {it.name}
                           </Typography>
-                          {it.modifierIds.length > 0 && (
+                          {it.modifierNames.length > 0 && (
                             <Typography variant="caption" color="text.secondary">
-                              {it.modifierIds.map((id) => modifierById[id]?.name).join(' · ')}
+                              {it.modifierNames.join(' · ')}
                             </Typography>
                           )}
                         </Box>
@@ -175,12 +172,12 @@ export default function FloorPage() {
                   {status === 'free' ? t('openTable') : t('orderMore')}
                 </GlassButton>
                 {status !== 'free' && status !== 'bill' && (
-                  <GlassButton size="large" color="secondary" startIcon={<PaymentsIcon />} onClick={() => orders.forEach((o) => payOrder(o.id))} data-testid="table-checkout">
+                  <GlassButton size="large" color="secondary" startIcon={<PaymentsIcon />} onClick={() => void Promise.all(orders.map((o) => payOrder(o.id)))} data-testid="table-checkout">
                     {t('checkout')} · {formatMoney(total, locale)}
                   </GlassButton>
                 )}
                 {status === 'bill' && (
-                  <GlassButton size="large" color="success" onClick={() => { closeTable(table.id); setSelected(null); }} data-testid="table-close">
+                  <GlassButton size="large" color="success" onClick={() => void closeTable(table.id).then(() => setSelected(null))} data-testid="table-close">
                     {t('closeTable')}
                   </GlassButton>
                 )}
@@ -192,11 +189,10 @@ export default function FloorPage() {
 
       {table && ordering && (
         <TableOrderDialog
+          categories={menu.categories}
+          items={menu.items}
           onClose={() => setOrdering(false)}
-          onSend={(lines) => {
-            placeOrder(lines, 'dine_in', { tableId: table.id, guests: table.seats });
-            setOrdering(false);
-          }}
+          onSend={(lines) => void placeOrder(lines, 'dine_in', { tableId: table.id, guests: table.seats }).then(() => setOrdering(false))}
         />
       )}
     </Box>
@@ -204,11 +200,22 @@ export default function FloorPage() {
 }
 
 /** A compact menu for the waiter's phone: category tabs, tap to add, defaults for the options. */
-function TableOrderDialog({ onClose, onSend }: { onClose: () => void; onSend: (lines: CartLine[]) => void }) {
+function TableOrderDialog({
+  categories,
+  items: menu,
+  onClose,
+  onSend,
+}: {
+  categories: Category[];
+  items: MenuItem[];
+  onClose: () => void;
+  onSend: (lines: CartLine[]) => void;
+}) {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
   const { lineTotal } = useFnb();
-  const [category, setCategory] = useState(categories[2].id);
+  // open on the first food category: a waiter at a table is not there for coffee first
+  const [category, setCategory] = useState<string>(categories.find((c) => /ข้าว|rice/i.test(c.name))?.id ?? categories[0]?.id ?? '');
   const [lines, setLines] = useState<CartLine[]>([]);
   const items = menu.filter((m) => m.categoryId === category && m.channels.includes('dine_in'));
   const total = lines.reduce((s, l) => s + lineTotal(l), 0);

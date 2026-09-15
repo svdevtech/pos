@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { GlassButton } from '@/components/glass';
-import { menuById, modifierById, stations, tableById } from '@/lib/fnb/mock';
+import { tableById, type MenuItem } from '@/lib/fnb/mock';
 import { useFnb, type Order, type OrderItem } from '@/lib/fnb/store';
 
 const MotionBox = motion(Box);
@@ -20,7 +20,8 @@ const MotionBox = motion(Box);
  */
 export default function KitchenPage() {
   const t = useTranslations('fnb');
-  const { orders, setItemStatus, bumpOrder } = useFnb();
+  const { menu, orders, setItemStatus, bumpOrder } = useFnb();
+  const { stations, menuById } = menu;
   const [stationId, setStationId] = useState<string>('all');
   const [now, setNow] = useState(() => Date.now());
 
@@ -86,8 +87,9 @@ export default function KitchenPage() {
                     items={items}
                     now={now}
                     accent={station.color}
-                    onItem={(it, status) => setItemStatus(order.id, it.id, status)}
-                    onBump={() => bumpOrder(order.id, station.id, items.every((i) => i.status === 'ready') ? 'served' : 'ready')}
+                    menuById={menuById}
+                    onItem={(it, status) => void setItemStatus(order.id, it.id, status)}
+                    onBump={() => void bumpOrder(order.id, station.id, items.every((i) => i.status === 'ready') ? 'served' : 'ready')}
                   />
                 ))}
               </AnimatePresence>
@@ -104,6 +106,7 @@ function Ticket({
   items,
   now,
   accent,
+  menuById,
   onItem,
   onBump,
 }: {
@@ -111,6 +114,7 @@ function Ticket({
   items: OrderItem[];
   now: number;
   accent: string;
+  menuById: Record<string, MenuItem>;
   onItem: (it: OrderItem, status: OrderItem['status']) => void;
   onBump: () => void;
 }) {
@@ -121,7 +125,7 @@ function Ticket({
   const warn = !late && ageMin >= budget * 0.6;
   const allReady = items.every((i) => i.status === 'ready');
   const border = late ? '#E53935' : warn ? '#FB8C00' : accent;
-  const where = order.tableId ? `${t('table')} ${tableById[order.tableId]?.name ?? ''}` : order.queueNo ? `${t('queue')} ${order.queueNo}` : t('takeaway');
+  const where = order.tableId ? `${t('table')} ${tableById[order.tableId]?.name ?? ''}` : `${t('queue')} ${order.queueNo}`;
 
   return (
     <MotionBox
@@ -177,9 +181,9 @@ function Ticket({
               <Typography fontWeight={800} sx={{ fontSize: 18, lineHeight: 1.15 }}>
                 {it.emoji} {it.name}
               </Typography>
-              {it.modifierIds.length > 0 && (
+              {it.modifierNames.length > 0 && (
                 <Typography variant="body2" color="text.secondary">
-                  {it.modifierIds.map((id) => modifierById[id]?.name).join(' · ')}
+                  {it.modifierNames.join(' · ')}
                 </Typography>
               )}
               {it.note && (

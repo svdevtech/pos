@@ -19,8 +19,8 @@ import { useToast } from '@/components/Toast';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
-import { categories, menu, modifierById, modifierGroupById, type Channel, type MenuItem } from '@/lib/fnb/mock';
-import { itemPrice, useFnb, type CartLine } from '@/lib/fnb/store';
+import type { Channel, MenuItem, ModifierGroup } from '@/lib/fnb/mock';
+import { useFnb, type CartLine } from '@/lib/fnb/store';
 
 const MotionBox = motion(Box);
 
@@ -33,15 +33,18 @@ export default function OrderPage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
   const toast = useToast();
-  const { placeOrder, lineTotal, nextQueue } = useFnb();
+  const { menu: m, placeOrder, lineTotal, nextQueue } = useFnb();
+  const { categories, items: menu, modifierById } = m;
 
-  const [category, setCategory] = useState(categories[0].id);
+  const [category, setCategory] = useState<string>('');
+  // the first category once the menu is in, unless the cashier already picked one
+  const activeCategory = category || categories[0]?.id || '';
   const [channel, setChannel] = useState<Channel>('counter');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [picking, setPicking] = useState<MenuItem | null>(null);
   const [lastQueue, setLastQueue] = useState<number | null>(null);
 
-  const items = useMemo(() => menu.filter((m) => m.categoryId === category && m.channels.includes(channel)), [category, channel]);
+  const items = useMemo(() => menu.filter((x) => x.categoryId === activeCategory && x.channels.includes(channel)), [menu, activeCategory, channel]);
   const total = cart.reduce((s, l) => s + lineTotal(l), 0);
 
   const addLine = (line: CartLine) => {
@@ -65,12 +68,20 @@ export default function OrderPage() {
     setPicking(m);
   };
 
-  const send = () => {
-    if (cart.length === 0) return;
-    const order = placeOrder(cart, channel);
-    setCart([]);
-    setLastQueue(order.queueNo ?? null);
-    toast.success(order.queueNo ? `${t('queue')} ${order.queueNo}` : t('sendToKitchen'));
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    if (cart.length === 0 || sending) return;
+    setSending(true);
+    try {
+      const order = await placeOrder(cart, channel);
+      setCart([]);
+      setLastQueue(order.queueNo);
+      toast.success(`${t('queue')} ${order.queueNo}`);
+    } catch (e) {
+      toast.error(String((e as Error)?.message ?? e));
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -93,8 +104,8 @@ export default function OrderPage() {
               key={c.id}
               label={`${c.emoji} ${c.name}`}
               clickable
-              color={c.id === category ? 'primary' : 'default'}
-              variant={c.id === category ? 'filled' : 'outlined'}
+              color={c.id === activeCategory ? 'primary' : 'default'}
+              variant={c.id === activeCategory ? 'filled' : 'outlined'}
               onClick={() => setCategory(c.id)}
               sx={{ fontWeight: 600, fontSize: 15, py: 2.2 }}
               data-testid={`cat-${c.id}`}
@@ -254,23 +265,35 @@ export default function OrderPage() {
             <GlassButton variant="outlined" color="inherit" onClick={() => setCart([])} disabled={cart.length === 0}>
               {t('clear')}
             </GlassButton>
-            <GlassButton fullWidth size="large" startIcon={<SendIcon />} onClick={send} disabled={cart.length === 0} data-testid="send-order">
+            <GlassButton fullWidth size="large" startIcon={<SendIcon />} onClick={() => void send()} disabled={cart.length === 0} loading={sending} data-testid="send-order">
               {channel === 'dine_in' ? t('sendToKitchen') : t('payAndSend')}
             </GlassButton>
           </Stack>
         </Box>
       </Box>
 
-      {picking && <ModifierDialog item={picking} onClose={() => setPicking(null)} onAdd={(line) => { addLine(line); setPicking(null); }} />}
+      {picking && <ModifierDialog item={picking} groups={m.modifierGroupById} price={(line) => lineTotal(line)} onClose={() => setPicking(null)} onAdd={(line) => { addLine(line); setPicking(null); }} />}
     </Box>
   );
 }
 
 /** Size, sweetness, milk, extras: the questions asked once per item, answered by tapping chips. */
-function ModifierDialog({ item, onClose, onAdd }: { item: MenuItem; onClose: () => void; onAdd: (l: CartLine) => void }) {
+function ModifierDialog({
+  item,
+  groups: groupById,
+  price,
+  onClose,
+  onAdd,
+}: {
+  item: MenuItem;
+  groups: Record<string, ModifierGroup>;
+  price: (l: CartLine) => number;
+  onClose: () => void;
+  onAdd: (l: CartLine) => void;
+}) {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
-  const groups = item.modifierGroupIds.map((id) => modifierGroupById[id]).filter(Boolean);
+  const groups = item.modifierGroupIds.map((id) => groupById[id]).filter(Boolean);
   const [chosen, setChosen] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(groups.map((g) => [g.id, g.modifiers.filter((m) => m.isDefault).map((m) => m.id)])),
   );
@@ -278,7 +301,7 @@ function ModifierDialog({ item, onClose, onAdd }: { item: MenuItem; onClose: () 
   const [note, setNote] = useState('');
 
   const toggle = (gid: string, mid: string) => {
-    const g = modifierGroupById[gid];
+    const g = groupById[gid];
     setChosen((c) => {
       const cur = c[gid] ?? [];
       if (cur.includes(mid)) return { ...c, [gid]: cur.filter((x) => x !== mid) };
@@ -290,7 +313,7 @@ function ModifierDialog({ item, onClose, onAdd }: { item: MenuItem; onClose: () 
 
   const modifierIds = Object.values(chosen).flat();
   const valid = groups.every((g) => (chosen[g.id]?.length ?? 0) >= g.minSelect);
-  const unit = itemPrice(item.id, modifierIds);
+  const unit = price({ menuItemId: item.id, qty: 1, modifierIds });
 
   return (
     <GlassDialog
