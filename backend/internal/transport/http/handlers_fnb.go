@@ -34,6 +34,11 @@ type FnbService interface {
 	TableOrders(ctx context.Context, token string) ([]domain.Order, error)
 	TableCreateOrder(ctx context.Context, token string, lines []fnbuc.LineInput, note string) (*domain.Order, error)
 	SubscribeTable(ctx context.Context, token string) (<-chan fnbuc.Event, error)
+	Quote(ctx context.Context, storeID uuid.UUID, orderIDs []uuid.UUID) (*fnbuc.CheckoutQuote, error)
+	Checkout(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, in fnbuc.CheckoutInput) (*domain.Sale, error)
+	Floor(ctx context.Context, storeID uuid.UUID, activeOnly bool) (*fnbuc.FloorView, error)
+	SaveZone(ctx context.Context, storeID uuid.UUID, z domain.FloorZone) (*domain.FloorZone, error)
+	SaveTable(ctx context.Context, storeID uuid.UUID, t domain.FloorTable) (*domain.FloorTable, error)
 }
 
 // streamEvents writes order events as server-sent events until the client goes away. A comment
@@ -127,6 +132,23 @@ func (s *Server) mountPublicFnb(r chi.Router) {
 	})
 }
 
+// uuidList parses a comma-separated list of ids from a query string.
+func uuidList(v string) ([]uuid.UUID, error) {
+	var out []uuid.UUID
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := uuid.Parse(part)
+		if err != nil {
+			return nil, domain.ErrValidation.With("field", "ids")
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 func fnbActor(r *http.Request) fnbuc.Actor {
 	a := actorOf(r)
 	return fnbuc.Actor{UserID: a.UserID, Name: a.Name}
@@ -199,6 +221,70 @@ func (s *Server) mountFnb(r chi.Router) {
 		// ---- live updates for the kitchen, the floor and the counter
 		r.With(requireRole(rolesAll...)).Get("/stream", func(w http.ResponseWriter, r *http.Request) {
 			streamEvents(w, r, s.Fnb.Subscribe(r.Context(), storeID(r)))
+		})
+
+		// ---- the room: zones and tables, drawn by every screen, edited by managers
+		r.With(requireRole(rolesAll...)).Get("/floor", func(w http.ResponseWriter, r *http.Request) {
+			out, err := s.Fnb.Floor(r.Context(), storeID(r), queryStr(r, "all") != "1")
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesManage...)).Put("/floor/zones", func(w http.ResponseWriter, r *http.Request) {
+			var in domain.FloorZone
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SaveZone(r.Context(), storeID(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesManage...)).Put("/floor/tables", func(w http.ResponseWriter, r *http.Request) {
+			var in domain.FloorTable
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SaveTable(r.Context(), storeID(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+
+		// ---- checkout: the orders become a bill in the sales module
+		r.With(requireRole(rolesSell...)).Get("/checkout/quote", func(w http.ResponseWriter, r *http.Request) {
+			ids, err := uuidList(queryStr(r, "ids"))
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.Quote(r.Context(), storeID(r), ids)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesSell...)).Post("/checkout", func(w http.ResponseWriter, r *http.Request) {
+			var in fnbuc.CheckoutInput
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.Checkout(r.Context(), storeID(r), fnbActor(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			created(w, out)
 		})
 
 		// ---- tables: the QR each one shows

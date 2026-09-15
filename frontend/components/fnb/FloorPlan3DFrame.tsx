@@ -7,16 +7,15 @@
  * Not for bundle size: @react-three/fiber augments JSX.IntrinsicElements globally, and inside
  * the Next TypeScript program that made every MUI polymorphic component fail with TS2590. A
  * separate program is the clean cure, and the iframe is the seam. State crosses it as messages
- * — a status per table and the selection go in, taps and the frame rate come out.
+ * — the room, a status per table and the selection go in; taps and the frame rate come out.
  */
 
 import { useEffect, useRef } from 'react';
-import { tables } from '@/lib/fnb/mock';
 import type { FloorPlanProps } from '@/components/fnb/floorStatus';
 
 const SRC = '/fnb3d/index.html';
 
-export default function FloorPlan3DFrame({ statusOf, selectedId, onSelect, onFps }: FloorPlanProps) {
+export default function FloorPlan3DFrame({ floor, statusOf, selectedId, onSelect, onFps }: FloorPlanProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const ready = useRef(false);
   // the latest callbacks, so the single message listener never goes stale
@@ -26,8 +25,8 @@ export default function FloorPlan3DFrame({ statusOf, selectedId, onSelect, onFps
   const send = () => {
     const w = frame.current?.contentWindow;
     if (!w || !ready.current) return;
-    const statuses = Object.fromEntries(tables.map((t) => [t.id, statusOf(t.id)]));
-    w.postMessage({ type: 'state', statuses, selectedId }, '*');
+    const statuses = Object.fromEntries(floor.tables.map((t) => [t.id, statusOf(t.id)]));
+    w.postMessage({ type: 'state', floor, statuses, selectedId }, '*');
   };
 
   useEffect(() => {
@@ -48,7 +47,7 @@ export default function FloorPlan3DFrame({ statusOf, selectedId, onSelect, onFps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // every render of the host may carry a new status map; push it across
+  // every render of the host may carry a new status map or a moved table; push it across
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(send);
 

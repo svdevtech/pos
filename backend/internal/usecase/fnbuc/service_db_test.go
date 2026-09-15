@@ -13,6 +13,7 @@ import (
 
 	"github.com/svdev/pos/internal/domain"
 	"github.com/svdev/pos/internal/repository/postgres"
+	"github.com/svdev/pos/internal/usecase/salesuc"
 )
 
 // The one test that matters for the shop: a dish sent to the kitchen takes its ingredients off
@@ -41,7 +42,7 @@ func setup(t *testing.T) *fixture {
 	db, err := postgres.Open(ctx, url)
 	require.NoError(t, err)
 	t.Cleanup(db.Close)
-	f := &fixture{db: db, svc: New(db, postgres.StockRepo{})}
+	f := &fixture{db: db, svc: New(db, postgres.StockRepo{}, salesuc.New(db, postgres.StockRepo{}))}
 
 	code := "T" + uuid.NewString()[:6]
 	require.NoError(t, db.WithTx(ctx, postgres.Scope{Bypass: true}, func(ctx context.Context, tx pgx.Tx) error {

@@ -81,11 +81,13 @@ type Sale struct {
 	ARPaid          decimal.Decimal `json:"ar_paid"`
 	ARBalance       decimal.Decimal `json:"ar_balance"`
 	Note            string          `json:"note,omitempty"`
-	LegacyTender    *int16          `json:"legacy_tender,omitempty"`
-	LegacyID        string          `json:"legacy_id,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	Lines           []SaleLine      `json:"lines,omitempty"`
-	Payments        []SalePayment   `json:"payments,omitempty"`
+	// OrderID is the F&B order the bill was cut for (the first one, when a table paid several).
+	OrderID      *uuid.UUID    `json:"order_id,omitempty"`
+	LegacyTender *int16        `json:"legacy_tender,omitempty"`
+	LegacyID     string        `json:"legacy_id,omitempty"`
+	CreatedAt    time.Time     `json:"created_at"`
+	Lines        []SaleLine    `json:"lines,omitempty"`
+	Payments     []SalePayment `json:"payments,omitempty"`
 }
 
 type SaleLine struct {

@@ -13,7 +13,7 @@ import (
 // or a table got a new customer code. The whole order rides along so a listener never has to
 // make a second call.
 type Event struct {
-	Kind  string        `json:"kind"` // created | updated | table
+	Kind  string        `json:"kind"` // created | updated | table | floor
 	Order *domain.Order `json:"order,omitempty"`
 	Table *TableToken   `json:"table,omitempty"`
 }

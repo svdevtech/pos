@@ -19,9 +19,10 @@ import { OrthographicCamera, RoundedBox, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { FLOOR, STATUS_COLOR, tables, zones, type Table, type TableStatus } from './floor';
+import { STATUS_COLOR, zoneBoxes, type FloorData, type Table, type TableStatus } from './floor';
 
 export interface FloorPlanProps {
+  floor: FloorData;
   statusOf: (tableId: string) => TableStatus;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -29,11 +30,11 @@ export interface FloorPlanProps {
   onFps?: (fps: number) => void;
 }
 
-/** Scene units are metres; the floor's centre sits at the origin. */
-const ox = -FLOOR.width / 2;
-const oz = -FLOOR.depth / 2;
+/** Scene units are metres; the floor's centre sits at the origin, so this is its top-left corner. */
+type Origin = { ox: number; oz: number };
+const originOf = (floor: FloorData): Origin => ({ ox: -floor.width / 2, oz: -floor.depth / 2 });
 
-function TableMesh({ table, status, selected, onSelect }: { table: Table; status: TableStatus; selected: boolean; onSelect: () => void }) {
+function TableMesh({ table, status, selected, onSelect, origin: { ox, oz } }: { table: Table; status: TableStatus; selected: boolean; onSelect: () => void; origin: Origin }) {
   const group = useRef<THREE.Group>(null);
   const [hover, setHover] = useState(false);
   const color = STATUS_COLOR[status];
@@ -81,32 +82,31 @@ function TableMesh({ table, status, selected, onSelect }: { table: Table; status
   );
 }
 
-function ZoneFloor() {
-  // the three zones are laid out left→right: dining, bar strip along the top, terrace on the right
-  const parts = useMemo(
-    () => [
-      { z: zones[0], x: 0, y: 1.2, w: 8, d: FLOOR.depth - 1.2 },
-      { z: zones[2], x: 0, y: 0, w: 8, d: 1.2 },
-      { z: zones[1], x: 8, y: 0, w: FLOOR.width - 8, d: FLOOR.depth },
-    ],
-    [],
-  );
+function ZoneFloor({ floor }: { floor: FloorData }) {
+  const { ox, oz } = originOf(floor);
+  // each zone is a patch of floor a metre round its tables, so a moved table moves its zone with it
+  const parts = useMemo(() => zoneBoxes(floor), [floor]);
   return (
     <group>
+      {/* the room itself */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+        <planeGeometry args={[floor.width, floor.depth]} />
+        <meshStandardMaterial color="#141d2b" roughness={1} />
+      </mesh>
       {parts.map((p) => (
-        <group key={p.z.id}>
+        <group key={p.zone.id}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ox + p.x + p.w / 2, 0, oz + p.y + p.d / 2]}>
             <planeGeometry args={[p.w - 0.04, p.d - 0.04]} />
-            <meshStandardMaterial color={p.z.color} roughness={0.95} />
+            <meshStandardMaterial color={p.zone.color} roughness={0.95} />
           </mesh>
           <Text position={[ox + p.x + 0.25, 0.01, oz + p.y + 0.35]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.28} color="rgba(255,255,255,0.55)" anchorX="left" anchorY="top">
-            {p.z.name}
+            {p.zone.name}
           </Text>
         </group>
       ))}
       {/* a low wall along the back edge gives the room a sense of depth */}
       <mesh position={[0, 0.25, oz - 0.1]}>
-        <boxGeometry args={[FLOOR.width + 0.4, 0.5, 0.2]} />
+        <boxGeometry args={[floor.width + 0.4, 0.5, 0.2]} />
         <meshStandardMaterial color="#1a2432" roughness={0.9} />
       </mesh>
     </group>
@@ -152,11 +152,12 @@ function FpsProbe({ onFps }: { onFps?: (fps: number) => void }) {
   return null;
 }
 
-export default function FloorPlan3D({ statusOf, selectedId, onSelect, onFps }: FloorPlanProps) {
+export default function FloorPlan3D({ floor, statusOf, selectedId, onSelect, onFps }: FloorPlanProps) {
+  const origin = useMemo(() => originOf(floor), [floor]);
   const target = useMemo(() => {
-    const tb = selectedId ? tables.find((t) => t.id === selectedId) : null;
-    return tb ? new THREE.Vector3(ox + tb.x, 0, oz + tb.y) : null;
-  }, [selectedId]);
+    const tb = selectedId ? floor.tables.find((t) => t.id === selectedId) : null;
+    return tb ? new THREE.Vector3(origin.ox + tb.x, 0, origin.oz + tb.y) : null;
+  }, [selectedId, floor, origin]);
 
   // preserveDrawingBuffer: the host can screenshot or print the plan and the frame survives a
   // readPixels — cheap for a scene this small
@@ -166,9 +167,9 @@ export default function FloorPlan3D({ statusOf, selectedId, onSelect, onFps }: F
       <OrthographicCamera makeDefault zoom={48} position={[10, 12, 10]} near={0.1} far={100} />
       <ambientLight intensity={0.75} />
       <directionalLight position={[6, 10, 4]} intensity={1.1} />
-      <ZoneFloor />
-      {tables.map((tb) => (
-        <TableMesh key={tb.id} table={tb} status={statusOf(tb.id)} selected={tb.id === selectedId} onSelect={() => onSelect(tb.id)} />
+      <ZoneFloor floor={floor} />
+      {floor.tables.map((tb) => (
+        <TableMesh key={tb.id} table={tb} status={statusOf(tb.id)} selected={tb.id === selectedId} onSelect={() => onSelect(tb.id)} origin={origin} />
       ))}
       <CameraRig target={target} />
       <FpsProbe onFps={onFps} />

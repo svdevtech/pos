@@ -89,6 +89,32 @@ const (
 	StationBoth    = "both"
 )
 
+// FloorZone is a part of the room (indoor, terrace, bar); FloorTable a table in it, placed in
+// metres so the floor plans draw the room to scale. Orders and QR tokens know a table by Code.
+type FloorZone struct {
+	ID       uuid.UUID `json:"id"`
+	StoreID  uuid.UUID `json:"store_id"`
+	Name     string    `json:"name"`
+	NameEn   string    `json:"name_en,omitempty"`
+	Color    string    `json:"color"`
+	Sort     int       `json:"sort"`
+	IsActive bool      `json:"is_active"`
+}
+
+type FloorTable struct {
+	ID       uuid.UUID       `json:"id"`
+	StoreID  uuid.UUID       `json:"store_id"`
+	ZoneID   *uuid.UUID      `json:"zone_id,omitempty"`
+	Code     string          `json:"code"`
+	Seats    int             `json:"seats"`
+	X        decimal.Decimal `json:"x"`
+	Y        decimal.Decimal `json:"y"`
+	Shape    string          `json:"shape"` // round | square | long
+	Rotation int             `json:"rotation"`
+	Sort     int             `json:"sort"`
+	IsActive bool            `json:"is_active"`
+}
+
 type KitchenStation struct {
 	ID          uuid.UUID `json:"id"`
 	StoreID     uuid.UUID `json:"store_id"`
@@ -179,13 +205,15 @@ type RecipeLine struct {
 }
 
 type Order struct {
-	ID            uuid.UUID       `json:"id"`
-	StoreID       uuid.UUID       `json:"store_id"`
-	OrderNo       int             `json:"order_no"`
-	Channel       OrderChannel    `json:"channel"`
-	TableCode     string          `json:"table_code,omitempty"`
-	Guests        int             `json:"guests,omitempty"`
-	Status        OrderStatus     `json:"status"`
+	ID        uuid.UUID    `json:"id"`
+	StoreID   uuid.UUID    `json:"store_id"`
+	OrderNo   int          `json:"order_no"`
+	Channel   OrderChannel `json:"channel"`
+	TableCode string       `json:"table_code,omitempty"`
+	Guests    int          `json:"guests,omitempty"`
+	Status    OrderStatus  `json:"status"`
+	// SaleID is the bill that settled the order, once it was paid.
+	SaleID        *uuid.UUID      `json:"sale_id,omitempty"`
 	ServiceCharge decimal.Decimal `json:"service_charge"`
 	Note          string          `json:"note,omitempty"`
 	CreatedBy     *uuid.UUID      `json:"created_by,omitempty"`

@@ -21,13 +21,15 @@ type StockLedger interface {
 type Service struct {
 	db     *postgres.DB
 	stock  StockLedger
+	sales  Sales
 	repo   postgres.FnbRepo
 	stores postgres.StoreRepo
 	hub    *hub
 }
 
-func New(db *postgres.DB, stock StockLedger) *Service {
-	return &Service{db: db, stock: stock, hub: newHub()}
+// New wires the module; sales may be nil in tests that never check out.
+func New(db *postgres.DB, stock StockLedger, sales Sales) *Service {
+	return &Service{db: db, stock: stock, sales: sales, hub: newHub()}
 }
 
 type Actor struct {
@@ -421,7 +423,17 @@ func (s *Service) SetItemStatus(ctx context.Context, storeID uuid.UUID, actor Ac
 		if err := s.repo.InsertEvent(ctx, storeID, orderID, &itemID, "status:"+string(status), map[string]any{"made": made}, actor.idPtr()); err != nil {
 			return err
 		}
-		out, err = s.repo.GetOrder(ctx, storeID, orderID)
+		if out, err = s.repo.GetOrder(ctx, storeID, orderID); err != nil {
+			return err
+		}
+		// a paid counter/takeaway order is finished once its last dish is handed over; a table's
+		// orders wait for the table to be closed
+		if out.Status == domain.OrderPaid && out.TableCode == "" && allDone(out.Items) {
+			if err := s.repo.SetOrderStatus(ctx, storeID, orderID, domain.OrderClosed); err != nil {
+				return err
+			}
+			out, err = s.repo.GetOrder(ctx, storeID, orderID)
+		}
 		return err
 	})
 	if err == nil {

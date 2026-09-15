@@ -145,10 +145,41 @@ func (s *Service) buildLines(ctx context.Context, storeID uuid.UUID, in CreateSa
 
 // Create posts a sale atomically: header, lines, tenders, stock ledger, AR, shift cash and drawer log.
 func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in CreateSaleInput) (*domain.Sale, error) {
+	return s.create(ctx, storeID, actor, in, nil)
+}
+
+// Prepared is a cart priced by another module — an F&B order, whose recipes already took the
+// ingredients off stock — so no product lookup happens and no stock moves here. A line without a
+// product (a service charge, a dish with no product behind it) is posted by description alone.
+type Prepared struct {
+	Lines   []CartLine
+	OrderID *uuid.UUID
+	VAT     decimal.Decimal
+}
+
+// CreatePrepared posts a bill for lines priced elsewhere; everything else — tenders, shift cash,
+// the drawer, AR, cash rounding — happens exactly as for a sale rung up at the till.
+func (s *Service) CreatePrepared(ctx context.Context, storeID uuid.UUID, actor Actor, in CreateSaleInput, p Prepared) (*domain.Sale, error) {
+	return s.create(ctx, storeID, actor, in, &p)
+}
+
+func (s *Service) create(ctx context.Context, storeID uuid.UUID, actor Actor, in CreateSaleInput, prepared *Prepared) (*domain.Sale, error) {
 	var out *domain.Sale
 	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
-		lines, member, err := s.buildLines(ctx, storeID, in, true)
-		if err != nil {
+		var lines []CartLine
+		var member *postgres.MemberSnapshot
+		var err error
+		if prepared != nil {
+			if len(prepared.Lines) == 0 {
+				return domain.ErrSaleEmpty
+			}
+			lines = prepared.Lines
+			if in.MemberID != nil {
+				if member, err = s.sales.MemberForSale(ctx, storeID, *in.MemberID); err != nil {
+					return err
+				}
+			}
+		} else if lines, member, err = s.buildLines(ctx, storeID, in, true); err != nil {
 			return err
 		}
 		now := time.Now()
@@ -197,6 +228,9 @@ func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 		if shift != nil {
 			sale.ShiftID = &shift.ID
 		}
+		if prepared != nil {
+			sale.OrderID, sale.VAT = prepared.OrderID, prepared.VAT
+		}
 		if settle.Credit.IsPositive() {
 			sale.ARStatus = domain.ARUnpaid
 			sale.ARTotal = settle.Credit
@@ -207,10 +241,17 @@ func (s *Service) Create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 		}
 		for i := range lines {
 			l := lines[i]
-			sl := &domain.SaleLine{SaleID: sale.ID, LineNo: i + 1, ProductID: ptr(l.ProductID), SKU: l.SKU, Description: l.Description, Qty: l.Qty, UnitPrice: l.UnitPrice,
+			var pid *uuid.UUID
+			if l.ProductID != uuid.Nil {
+				pid = ptr(l.ProductID)
+			}
+			sl := &domain.SaleLine{SaleID: sale.ID, LineNo: i + 1, ProductID: pid, SKU: l.SKU, Description: l.Description, Qty: l.Qty, UnitPrice: l.UnitPrice,
 				Discount: l.Discount.Add(l.PromoDisc), LineTotal: l.LineTotal(), CostLast: l.CostLast, CostAvg: l.CostAvg, IsFree: l.IsFree, SerialNo: l.SerialNo, PromotionID: l.PromotionID}
 			if err := s.sales.InsertLine(ctx, storeID, sl); err != nil {
 				return err
+			}
+			if prepared != nil || pid == nil {
+				continue // stock was taken by the recipe (or there is nothing to take)
 			}
 			cost := l.CostAvg
 			bal, err := s.stock.Apply(ctx, storeID, l.ProductID, "sale", l.Qty.Neg(), &cost, "sale", &sale.ID, docNo, actor.idPtr())

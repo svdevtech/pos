@@ -5,7 +5,7 @@
  */
 
 import { api } from '@/lib/api/client';
-import type { Money } from '@/lib/pos/types';
+import type { Money, Sale, TenderInput } from '@/lib/pos/types';
 
 export type Channel = 'counter' | 'dine_in' | 'takeaway' | 'delivery' | 'self_order';
 export type ItemStatus = 'sent' | 'preparing' | 'ready' | 'served' | 'void';
@@ -134,6 +134,8 @@ export interface Order {
   table_code?: string;
   guests?: number;
   status: OrderStatus;
+  /** The bill that settled the order, once paid. */
+  sale_id?: string | null;
   service_charge: Money;
   note?: string;
   created_at: string;
@@ -167,22 +169,79 @@ export interface TableToken {
   is_active: boolean;
 }
 
-/** One event from /fnb/stream: an order (the whole order rides along, nothing to fetch) or a table whose customer code changed. */
+/** One event from /fnb/stream: an order (the whole order rides along, nothing to fetch), a table whose customer code changed, or a change to the room. */
 export interface OrderEvent {
-  kind: 'created' | 'updated' | 'table';
+  kind: 'created' | 'updated' | 'table' | 'floor';
   order?: Order;
   table?: TableToken;
 }
 
+export interface FloorZone {
+  id: string;
+  name: string;
+  name_en?: string;
+  color: string;
+  sort: number;
+  is_active: boolean;
+}
+
+export interface FloorTable {
+  id: string;
+  zone_id?: string | null;
+  code: string;
+  seats: number;
+  x: Money;
+  y: Money;
+  shape: 'round' | 'square' | 'long';
+  rotation: number;
+  sort: number;
+  is_active: boolean;
+}
+
+export interface FloorView {
+  zones: FloorZone[];
+  tables: FloorTable[];
+}
+
+/** What the tender screen shows for one or more orders before any money changes hands. */
+export interface CheckoutQuote {
+  subtotal: Money;
+  service_pct: Money;
+  service_charge: Money;
+  vat_mode: 'none' | 'included' | 'excluded';
+  vat_pct: Money;
+  vat: Money;
+  net: Money;
+}
+
+export interface CheckoutInput {
+  order_ids: string[];
+  payments: TenderInput[];
+  member_id?: string;
+  note?: string;
+  terminal?: string;
+}
+
 export const fnbKeys = {
   menu: ['fnb', 'menu'] as const,
+  /** Everything, inactive included — the settings screens. */
+  menuAll: ['fnb', 'menu', 'all'] as const,
   orders: (open: boolean) => ['fnb', 'orders', open] as const,
   order: (id: string) => ['fnb', 'order', id] as const,
   tables: ['fnb', 'tables'] as const,
+  floor: ['fnb', 'floor'] as const,
+  floorAll: ['fnb', 'floor', 'all'] as const,
 };
 
 export const fnbApi = {
   menu: () => api.get<MenuView>('/fnb/menu'),
+  menuAll: () => api.get<MenuView>('/fnb/menu?all=1'),
+  floor: (all = false) => api.get<FloorView>(`/fnb/floor${all ? '?all=1' : ''}`),
+  saveZone: (z: Partial<FloorZone>) => api.put<FloorZone>('/fnb/floor/zones', z),
+  saveTable: (t: Partial<FloorTable>) => api.put<FloorTable>('/fnb/floor/tables', t),
+  quote: (orderIds: string[]) => api.get<CheckoutQuote>(`/fnb/checkout/quote?ids=${encodeURIComponent(orderIds.join(','))}`),
+  /** The orders become one bill in the sales module; the sale comes back for the receipt. */
+  checkout: (input: CheckoutInput) => api.post<Sale>('/fnb/checkout', input),
   createOrder: (input: CreateOrderInput) => api.post<Order>('/fnb/orders', input),
   orders: (open: boolean) => api.get<Order[]>(`/fnb/orders${open ? '?open=1' : ''}`),
   order: (id: string) => api.get<Order>(`/fnb/orders/${id}`),

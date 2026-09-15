@@ -145,5 +145,26 @@ for (const [name, category_id, station_id, price, groups, lines, channels] of it
     modifier_group_ids: groups, recipe: { yield_qty: '1', lines },
   });
 }
+// ---- the room ----------------------------------------------------------------------------
+const room = await call('GET', '/fnb/floor?all=1');
+const Z = Object.fromEntries((room.zones ?? []).map((z) => [z.name, z]));
+const zone = async (name, color, sort) => (await call('PUT', '/fnb/floor/zones', { id: Z[name]?.id, name, color, sort, is_active: true })).id;
+const zIn = await zone('ในร้าน', '#2b3d55', 0);
+const zOut = await zone('ระเบียง', '#2f4a3e', 1);
+const zBar = await zone('บาร์', '#4a3a2b', 2);
+const T = Object.fromEntries((room.tables ?? []).map((t) => [t.code, t]));
+const TABLES = [
+  ['1', zIn, 2, 1.5, 2, 'round'], ['2', zIn, 2, 3.5, 2, 'round'], ['3', zIn, 4, 1.5, 4.2, 'square'], ['4', zIn, 4, 3.5, 4.2, 'square'],
+  ['5', zIn, 6, 6, 3.2, 'long'], ['6', zIn, 4, 1.5, 6.4, 'square'], ['7', zIn, 4, 3.5, 6.4, 'square'], ['8', zIn, 6, 6, 6, 'long'],
+  ['11', zOut, 2, 9.8, 2, 'round'], ['12', zOut, 2, 9.8, 4, 'round'], ['13', zOut, 4, 9.8, 6.2, 'square'],
+  ['B1', zBar, 1, 4.5, 0.5, 'round'], ['B2', zBar, 1, 5.5, 0.5, 'round'], ['B3', zBar, 1, 6.5, 0.5, 'round'],
+];
+let ts = 0;
+for (const [code, zone_id, seats, x, y, shape] of TABLES) {
+  await call('PUT', '/fnb/floor/tables', { id: T[code]?.id, code, zone_id, seats, x: String(x), y: String(y), shape, rotation: 0, sort: ts++, is_active: true });
+}
+const roomAfter = await call('GET', '/fnb/floor');
+console.log(`room: ${roomAfter.zones.length} zones, ${roomAfter.tables.length} tables`);
+
 const after = await call('GET', '/fnb/menu');
 console.log(`seeded ${STORE}: ${after.stations.length} stations, ${after.categories.length} categories, ${after.modifier_groups.length} option groups, ${after.items.length} items, ${after.items.filter((i) => i.recipe?.lines?.length).length} with recipes, deduct_on=${after.deduct_on}`);

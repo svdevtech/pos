@@ -17,10 +17,14 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
+import ReceiptDialog from '@/components/pos/ReceiptPrint';
+import TenderDialog from '@/components/pos/TenderDialog';
+import { STATUS_COLOR } from '@/components/fnb/floorStatus';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
-import type { Channel, MenuItem, ModifierGroup } from '@/lib/fnb/mock';
 import { useFnb, type CartLine } from '@/lib/fnb/store';
+import type { Channel, MenuItem, ModifierGroup } from '@/lib/fnb/types';
+import { dec } from '@/lib/pos/types';
 
 const MotionBox = motion(Box);
 
@@ -33,8 +37,24 @@ export default function OrderPage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
   const toast = useToast();
-  const { menu: m, placeOrder, lineTotal, nextQueue } = useFnb();
+  const { menu: m, floor, orders, placeOrder, quote, checkout, lineTotal, nextQueue, tableStatus, orderTotal } = useFnb();
   const { categories, items: menu, modifierById } = m;
+  const [tableId, setTableId] = useState('');
+  // paying at the counter: a counter or takeaway order is paid the moment it is sent
+  const [tender, setTender] = useState<{ ids: string[]; net: number } | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<{ saleId: string; change: number; autoPrint: boolean } | null>(null);
+  const unpaid = orders.filter((o) => o.status === 'open' && !o.tableId);
+  const startCheckout = async (ids: string[]) => {
+    try {
+      const q = await quote(ids);
+      setPayError(null);
+      setTender({ ids, net: dec(q.net) });
+    } catch (e) {
+      toast.error(String((e as Error)?.message ?? e));
+    }
+  };
 
   const [category, setCategory] = useState<string>('');
   // the first category once the menu is in, unless the cashier already picked one
@@ -71,12 +91,17 @@ export default function OrderPage() {
   const [sending, setSending] = useState(false);
   const send = async () => {
     if (cart.length === 0 || sending) return;
+    if (channel === 'dine_in' && !tableId) {
+      toast.error(t('pickTable'));
+      return;
+    }
     setSending(true);
     try {
-      const order = await placeOrder(cart, channel);
+      const order = await placeOrder(cart, channel, channel === 'dine_in' ? { tableId, guests: floor.tableById[tableId]?.seats } : undefined);
       setCart([]);
       setLastQueue(order.queueNo);
       toast.success(`${t('queue')} ${order.queueNo}`);
+      if (channel !== 'dine_in') await startCheckout([order.id]);
     } catch (e) {
       toast.error(String((e as Error)?.message ?? e));
     } finally {
@@ -94,6 +119,15 @@ export default function OrderPage() {
             <ToggleButton value="takeaway">{t('takeaway')}</ToggleButton>
             <ToggleButton value="dine_in">{t('dineIn')}</ToggleButton>
           </ToggleButtonGroup>
+          {channel === 'dine_in' &&
+            floor.tables.map((tb) => {
+              const st = tableStatus(tb.id);
+              const on = tb.id === tableId;
+              return <Chip key={tb.id} size="small" label={tb.name} clickable onClick={() => setTableId(tb.id)} variant={on ? 'filled' : 'outlined'} sx={{ fontWeight: 700, ...(on ? { bgcolor: STATUS_COLOR[st], color: '#fff' } : { borderColor: STATUS_COLOR[st], color: STATUS_COLOR[st] }) }} data-testid={`pick-table-${tb.name}`} />;
+            })}
+          {unpaid.map((o) => (
+            <Chip key={o.id} size="small" color="warning" label={`${t('unpaid')} #${o.queueNo} · ${formatMoney(orderTotal(o), locale)}`} clickable onClick={() => void startCheckout([o.id])} data-testid={`unpaid-${o.queueNo}`} />
+          ))}
           <Box sx={{ flex: 1 }} />
           <Chip size="small" label={`${t('queue')} ${nextQueue}`} variant="outlined" />
         </Stack>
@@ -273,6 +307,30 @@ export default function OrderPage() {
       </Box>
 
       {picking && <ModifierDialog item={picking} groups={m.modifierGroupById} price={(line) => lineTotal(line)} onClose={() => setPicking(null)} onAdd={(line) => { addLine(line); setPicking(null); }} />}
+
+      <TenderDialog
+        open={Boolean(tender)}
+        onClose={() => setTender(null)}
+        net={tender?.net ?? 0}
+        member={null}
+        busy={paying}
+        error={payError}
+        onConfirm={async (payments, print) => {
+          if (!tender) return;
+          setPaying(true);
+          setPayError(null);
+          try {
+            const sale = await checkout(tender.ids, payments);
+            setTender(null);
+            setReceipt({ saleId: sale.id, change: dec(sale.change_amount), autoPrint: print });
+          } catch (e) {
+            setPayError(String((e as Error)?.message ?? e));
+          } finally {
+            setPaying(false);
+          }
+        }}
+      />
+      <ReceiptDialog open={Boolean(receipt)} saleId={receipt?.saleId ?? null} change={receipt?.change ?? null} autoPrint={receipt?.autoPrint} onClose={() => setReceipt(null)} />
     </Box>
   );
 }

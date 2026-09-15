@@ -1,15 +1,20 @@
 'use client';
 
+import PrintIcon from '@mui/icons-material/Print';
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
-import { GlassButton } from '@/components/glass';
-import { tableById, type MenuItem } from '@/lib/fnb/mock';
-import { useFnb, type Order, type OrderItem } from '@/lib/fnb/store';
+import { GlassButton, GlassDialog } from '@/components/glass';
+import { readPrintStations, writePrintStations } from '@/lib/fnb/kitchenTicket';
+import { useFnb, type Order, type OrderItem, type Table } from '@/lib/fnb/store';
+import type { MenuItem } from '@/lib/fnb/types';
 
 const MotionBox = motion(Box);
 
@@ -20,10 +25,16 @@ const MotionBox = motion(Box);
  */
 export default function KitchenPage() {
   const t = useTranslations('fnb');
-  const { menu, orders, setItemStatus, bumpOrder } = useFnb();
+  const { menu, floor, orders, setItemStatus, bumpOrder, printTicket } = useFnb();
   const { stations, menuById } = menu;
+  const { tableById } = floor;
   const [stationId, setStationId] = useState<string>('all');
   const [now, setNow] = useState(() => Date.now());
+  // which stations' tickets this device prints (kept in its localStorage)
+  const [printerOpen, setPrinterOpen] = useState(false);
+  const [printFor, setPrintFor] = useState<string[]>([]);
+  useEffect(() => setPrintFor(readPrintStations()), []);
+  const printerStations = stations.filter((s) => s.output !== 'kds');
 
   // the clock drives the late colours, nothing else re-renders on it
   useEffect(() => {
@@ -60,10 +71,36 @@ export default function KitchenPage() {
           />
         ))}
         <Box sx={{ flex: 1 }} />
-        <Typography variant="caption" color="text.secondary">
-          {t('prototypeNote')}
-        </Typography>
+        <GlassButton size="small" variant={printFor.length ? 'contained' : 'outlined'} startIcon={<PrintIcon />} onClick={() => setPrinterOpen(true)} data-testid="kds-printer">
+          {t('printerSetup')}
+          {printFor.length ? ` · ${printFor.length}` : ''}
+        </GlassButton>
       </Stack>
+
+      <GlassDialog open={printerOpen} onClose={() => setPrinterOpen(false)} title={t('printerSetup')} maxWidth="xs" actions={<GlassButton onClick={() => setPrinterOpen(false)}>{t('done')}</GlassButton>}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          {t('printerSetupHint')}
+        </Typography>
+        {printerStations.length === 0 && <Typography color="text.secondary">{t('noPrinterStations')}</Typography>}
+        {printerStations.map((s) => (
+          <FormControlLabel
+            key={s.id}
+            control={
+              <Checkbox
+                checked={printFor.includes(s.id)}
+                onChange={(_, on) => {
+                  const next = on ? [...printFor, s.id] : printFor.filter((x) => x !== s.id);
+                  setPrintFor(next);
+                  writePrintStations(next);
+                }}
+                data-testid={`print-station-${s.id}`}
+              />
+            }
+            label={s.name}
+            sx={{ display: 'flex' }}
+          />
+        ))}
+      </GlassDialog>
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))`, gap: 1.5 }}>
         {tickets.map(({ station, orders: list }) => (
@@ -88,6 +125,8 @@ export default function KitchenPage() {
                     now={now}
                     accent={station.color}
                     menuById={menuById}
+                    tableById={tableById}
+                    onPrint={station.output === 'kds' ? undefined : () => printTicket(order.id, station.id)}
                     onItem={(it, status) => void setItemStatus(order.id, it.id, status)}
                     onBump={() => void bumpOrder(order.id, station.id, items.every((i) => i.status === 'ready') ? 'served' : 'ready')}
                   />
@@ -107,6 +146,8 @@ function Ticket({
   now,
   accent,
   menuById,
+  tableById,
+  onPrint,
   onItem,
   onBump,
 }: {
@@ -115,6 +156,9 @@ function Ticket({
   now: number;
   accent: string;
   menuById: Record<string, MenuItem>;
+  tableById: Record<string, Table>;
+  /** Present for a station with a printer: prints the ticket again on this device. */
+  onPrint?: () => void;
   onItem: (it: OrderItem, status: OrderItem['status']) => void;
   onBump: () => void;
 }) {
@@ -156,6 +200,11 @@ function Ticket({
           {ageMin} {t('min')}
           {late ? ` · ${t('late')}` : ''}
         </Typography>
+        {onPrint && (
+          <IconButton size="small" onClick={onPrint} sx={{ color: '#fff', ml: 0.5 }} title={t('printTicket')} data-testid="ticket-print">
+            <PrintIcon fontSize="small" />
+          </IconButton>
+        )}
       </Stack>
       <Box sx={{ p: 1 }}>
         {items.map((it) => (

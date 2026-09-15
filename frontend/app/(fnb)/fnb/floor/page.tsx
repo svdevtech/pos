@@ -20,10 +20,14 @@ import FloorPlan2D from '@/components/fnb/FloorPlan2D';
 import FloorPlan3DFrame from '@/components/fnb/FloorPlan3DFrame';
 import { STATUS_COLOR } from '@/components/fnb/floorStatus';
 import { GlassButton, GlassDialog } from '@/components/glass';
+import ReceiptDialog from '@/components/pos/ReceiptPrint';
+import TenderDialog from '@/components/pos/TenderDialog';
+import { useToast } from '@/components/Toast';
 import { resolveLocale } from '@/i18n/config';
 import { formatMoney } from '@/lib/format';
-import { tableById, zones, type Category, type MenuItem } from '@/lib/fnb/mock';
 import { useFnb, type CartLine, type TableStatus } from '@/lib/fnb/store';
+import type { Category, MenuItem } from '@/lib/fnb/types';
+import { dec } from '@/lib/pos/types';
 
 
 function hasWebGL(): boolean {
@@ -51,13 +55,20 @@ const STATUS_KEY: Record<TableStatus, 'free' | 'seated' | 'waiting' | 'readyTabl
 export default function FloorPage() {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
-  const { menu, tableStatus, ordersForTable, placeOrder, payOrder, closeTable, orderTotal } = useFnb();
+  const toast = useToast();
+  const { menu, floor, tableStatus, ordersForTable, placeOrder, quote, checkout, closeTable, orderTotal } = useFnb();
+  const { tableById, zones } = floor;
 
   const [view, setView] = useState<'3d' | '2d'>('3d');
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [ordering, setOrdering] = useState(false);
   const [lowFps, setLowFps] = useState(0);
+  // paying: the tender screen the till uses, then the receipt it prints
+  const [tender, setTender] = useState<{ ids: string[]; net: number } | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<{ saleId: string; change: number; autoPrint: boolean } | null>(null);
 
   useEffect(() => setWebgl(hasWebGL()), []);
   // three consecutive seconds under 24 fps: this device is not going to manage 3D, stop trying
@@ -71,11 +82,21 @@ export default function FloorPage() {
   const status = selected ? tableStatus(selected) : 'free';
   const orders = selected ? ordersForTable(selected) : [];
   const total = orders.reduce((s, o) => s + orderTotal(o), 0);
+  const unpaid = orders.filter((o) => o.status === 'open');
+  const startCheckout = async () => {
+    try {
+      const q = await quote(unpaid.map((o) => o.id));
+      setPayError(null);
+      setTender({ ids: unpaid.map((o) => o.id), net: dec(q.net) });
+    } catch (e) {
+      toast.error(String((e as Error)?.message ?? e));
+    }
+  };
   const counts = useMemo(() => {
     const c: Record<TableStatus, number> = { free: 0, seated: 0, waiting: 0, ready: 0, bill: 0 };
     for (const id of Object.keys(tableById)) c[tableStatus(id)] += 1;
     return c;
-  }, [tableStatus]);
+  }, [tableStatus, tableById]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1 }}>
@@ -99,9 +120,9 @@ export default function FloorPage() {
 
       <Box sx={{ flex: 1, minHeight: 0, borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
         {webgl === null ? null : show3d ? (
-          <FloorPlan3DFrame statusOf={tableStatus} selectedId={selected} onSelect={setSelected} onFps={onFps} />
+          <FloorPlan3DFrame floor={floor} statusOf={tableStatus} selectedId={selected} onSelect={setSelected} onFps={onFps} />
         ) : (
-          <FloorPlan2D statusOf={tableStatus} selectedId={selected} onSelect={setSelected} />
+          <FloorPlan2D floor={floor} statusOf={tableStatus} selectedId={selected} onSelect={setSelected} />
         )}
       </Box>
 
@@ -171,9 +192,9 @@ export default function FloorPage() {
                 <GlassButton size="large" startIcon={<AddIcon />} onClick={() => setOrdering(true)} data-testid="table-order">
                   {status === 'free' ? t('openTable') : t('orderMore')}
                 </GlassButton>
-                {status !== 'free' && status !== 'bill' && (
-                  <GlassButton size="large" color="secondary" startIcon={<PaymentsIcon />} onClick={() => void Promise.all(orders.map((o) => payOrder(o.id)))} data-testid="table-checkout">
-                    {t('checkout')} · {formatMoney(total, locale)}
+                {unpaid.length > 0 && (
+                  <GlassButton size="large" color="secondary" startIcon={<PaymentsIcon />} onClick={() => void startCheckout()} data-testid="table-checkout">
+                    {t('checkout')} · {formatMoney(unpaid.reduce((s, o) => s + orderTotal(o), 0), locale)}
                   </GlassButton>
                 )}
                 {status === 'bill' && (
@@ -186,6 +207,30 @@ export default function FloorPage() {
           </Box>
         )}
       </Drawer>
+
+      <TenderDialog
+        open={Boolean(tender)}
+        onClose={() => setTender(null)}
+        net={tender?.net ?? 0}
+        member={null}
+        busy={paying}
+        error={payError}
+        onConfirm={async (payments, print) => {
+          if (!tender) return;
+          setPaying(true);
+          setPayError(null);
+          try {
+            const sale = await checkout(tender.ids, payments);
+            setTender(null);
+            setReceipt({ saleId: sale.id, change: dec(sale.change_amount), autoPrint: print });
+          } catch (e) {
+            setPayError(String((e as Error)?.message ?? e));
+          } finally {
+            setPaying(false);
+          }
+        }}
+      />
+      <ReceiptDialog open={Boolean(receipt)} saleId={receipt?.saleId ?? null} change={receipt?.change ?? null} autoPrint={receipt?.autoPrint} onClose={() => setReceipt(null)} />
 
       {table && ordering && (
         <TableOrderDialog

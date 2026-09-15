@@ -1,0 +1,3 @@
+ALTER TABLE orders DROP COLUMN IF EXISTS sale_id;
+DROP TABLE IF EXISTS fnb_tables;
+DROP TABLE IF EXISTS fnb_zones;

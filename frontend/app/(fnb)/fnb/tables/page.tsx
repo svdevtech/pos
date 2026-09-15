@@ -15,7 +15,6 @@ import { useToast } from '@/components/Toast';
 import { GlassButton, GlassCard } from '@/components/glass';
 import { paperWidthMm } from '@/components/pos/ReceiptPrint';
 import { fnbApi, fnbKeys } from '@/lib/fnb/api';
-import { tables, zones } from '@/lib/fnb/mock';
 import { tableUrl } from '@/lib/fnb/publicApi';
 import { printQrSlips } from '@/lib/fnb/qrSlip';
 import { useFnb } from '@/lib/fnb/store';
@@ -49,8 +48,9 @@ export default function TablesPage() {
   const t = useTranslations('fnb');
   const toast = useToast();
   const qc = useQueryClient();
-  const { tableStatus } = useFnb();
-  const codes = useMemo(() => tables.map((x) => x.name), []);
+  const { tableStatus, floor } = useFnb();
+  const { tables, zones } = floor;
+  const codes = useMemo(() => tables.map((x) => x.name), [tables]);
   const tokens = useQuery({ queryKey: fnbKeys.tables, queryFn: () => fnbApi.tables(codes), staleTime: 60_000 });
   const rotate = useMutation({
     mutationFn: (code: string) => fnbApi.rotateTable(code),

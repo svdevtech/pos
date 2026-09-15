@@ -534,12 +534,12 @@ func (FnbRepo) SetOrderStatus(ctx context.Context, storeID, id uuid.UUID, status
 	return nil
 }
 
-const orderCols = `o.id, o.store_id, o.order_no, o.channel, COALESCE(o.table_code,''), COALESCE(o.guests,0), o.status, o.service_charge::text, COALESCE(o.note,''), o.created_by, o.created_at, o.closed_at`
+const orderCols = `o.id, o.store_id, o.order_no, o.channel, COALESCE(o.table_code,''), COALESCE(o.guests,0), o.status, o.sale_id, o.service_charge::text, COALESCE(o.note,''), o.created_by, o.created_at, o.closed_at`
 
 func scanOrder(row pgx.Row) (*domain.Order, error) {
 	var o domain.Order
 	var channel, status, sc string
-	if err := row.Scan(&o.ID, &o.StoreID, &o.OrderNo, &channel, &o.TableCode, &o.Guests, &status, &sc, &o.Note, &o.CreatedBy, &o.CreatedAt, &o.ClosedAt); err != nil {
+	if err := row.Scan(&o.ID, &o.StoreID, &o.OrderNo, &channel, &o.TableCode, &o.Guests, &status, &o.SaleID, &sc, &o.Note, &o.CreatedBy, &o.CreatedAt, &o.ClosedAt); err != nil {
 		return nil, err
 	}
 	o.Channel, o.Status, o.ServiceCharge = domain.OrderChannel(channel), domain.OrderStatus(status), dec(sc)

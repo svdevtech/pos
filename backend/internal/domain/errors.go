@@ -113,6 +113,7 @@ var (
 	ErrOrderNotFound         = NewError("ORDER_NOT_FOUND", http.StatusNotFound)
 	ErrOrderClosed           = NewError("ORDER_CLOSED", http.StatusConflict)
 	ErrOrderEmpty            = NewError("ORDER_EMPTY", http.StatusBadRequest)
+	ErrTableCodeTaken        = NewError("TABLE_CODE_TAKEN", http.StatusConflict)
 	ErrSaleCreditNeedsMember = NewError("SALE_CREDIT_NEEDS_MEMBER", http.StatusBadRequest)
 	ErrSaleSerialRequired    = NewError("SALE_SERIAL_REQUIRED", http.StatusBadRequest)
 	ErrStockInsufficient     = NewError("STOCK_INSUFFICIENT", http.StatusBadRequest)

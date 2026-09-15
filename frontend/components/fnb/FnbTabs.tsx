@@ -11,12 +11,15 @@
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
+import SettingsIcon from '@mui/icons-material/Settings';
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant';
 import Box from '@mui/material/Box';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { useSession } from '@/components/Providers';
+import { MUTATING_ROLES } from '@/lib/auth/session';
 
 /**
  * A tab is a plain next/link with a Box for layout — no MUI button at all. Every attempt to build
@@ -52,12 +55,14 @@ function Tab({ href, active, testId, icon, label }: { href: string; active: bool
 export default function FnbTabs() {
   const t = useTranslations('fnb');
   const path = usePathname() ?? '';
+  const { hasRole } = useSession();
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexGrow: 1, overflowX: 'auto' }}>
       <Tab href="/fnb/order" active={path.startsWith('/fnb/order')} testId="fnb-tab-order" icon={<LocalCafeIcon fontSize="small" />} label={t('order')} />
       <Tab href="/fnb/kitchen" active={path.startsWith('/fnb/kitchen')} testId="fnb-tab-kitchen" icon={<RestaurantIcon fontSize="small" />} label={t('kitchen')} />
       <Tab href="/fnb/floor" active={path.startsWith('/fnb/floor')} testId="fnb-tab-floor" icon={<TableRestaurantIcon fontSize="small" />} label={t('floor')} />
       <Tab href="/fnb/tables" active={path.startsWith('/fnb/tables')} testId="fnb-tab-tables" icon={<QrCode2Icon fontSize="small" />} label={t('tablesQr')} />
+      {hasRole(...MUTATING_ROLES) && <Tab href="/fnb/settings" active={path.startsWith('/fnb/settings')} testId="fnb-tab-settings" icon={<SettingsIcon fontSize="small" />} label={t('cfg.title')} />}
     </Box>
   );
 }

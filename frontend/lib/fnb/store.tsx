@@ -10,18 +10,25 @@
  * connection, and drops to 3 s while the stream is down. Every write goes through the API and
  * refreshes the list right away, so the tab that acted never waits for either.
  *
- * Tables and zones are still the prototype's fixture (lib/fnb/mock.ts) until the floor plan
- * lands in phase 1; an order remembers its table by the table's code.
+ * The room (zones and tables) comes from the API too; an order remembers its table by the
+ * table's code. Paying goes through `checkout`, which cuts a bill in the sales module. And
+ * when this device is set to print kitchen tickets (lib/fnb/kitchenTicket.ts), every order that
+ * arrives over the stream prints its tickets here, whichever screen is open.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { floorSize, type FloorData } from '@/components/fnb/floorStatus';
+import { paperWidthMm } from '@/components/pos/ReceiptPrint';
 import { getAccessToken } from '@/lib/auth/session';
-import { fnbApi, fnbKeys, subscribeOrders, type Channel, type ItemStatus, type MenuView, type Order as ApiOrder, type OrderItem as ApiItem } from '@/lib/fnb/api';
-import { tables, type Category, type MenuItem, type ModifierGroup, type Modifier, type Station, type Table } from '@/lib/fnb/mock';
-import { dec } from '@/lib/pos/types';
+import { fnbApi, fnbKeys, subscribeOrders, type Channel, type CheckoutQuote, type FloorView, type ItemStatus, type MenuView, type Order as ApiOrder, type OrderItem as ApiItem } from '@/lib/fnb/api';
+import { printKitchenTickets, readPrintStations, type KitchenTicket } from '@/lib/fnb/kitchenTicket';
+import { byId, type Category, type MenuItem, type ModifierGroup, type Modifier, type Station, type Table, type TableStatus, type Zone } from '@/lib/fnb/types';
+import { posApi, posKeys } from '@/lib/pos/api';
+import { dec, type Sale, type TenderInput } from '@/lib/pos/types';
 
-export type { Channel, ItemStatus };
+export type { Channel, ItemStatus, Table, TableStatus, Zone };
 
 export interface OrderItem {
   id: string;
@@ -60,7 +67,11 @@ export interface CartLine {
   note?: string;
 }
 
-export type TableStatus = 'free' | 'seated' | 'waiting' | 'ready' | 'bill';
+/** The room, plus the two indexes every screen wants. */
+export interface Floor extends FloorData {
+  tableById: Record<string, Table>;
+  tableByCode: Record<string, Table>;
+}
 
 interface Menu {
   categories: Category[];
@@ -78,6 +89,7 @@ interface Menu {
 interface Api {
   menu: Menu;
   menuLoading: boolean;
+  floor: Floor;
   /** True while the event stream is connected (the screens can show a live dot). */
   live: boolean;
   orders: Order[];
@@ -87,6 +99,12 @@ interface Api {
   /** Every item of a station's tickets in one go — the bump bar's "all done". */
   bumpOrder: (orderId: string, stationId: string, status: ItemStatus) => Promise<void>;
   payOrder: (orderId: string) => Promise<void>;
+  /** What the orders come to, with the shop's service charge and VAT, for the tender screen. */
+  quote: (orderIds: string[]) => Promise<CheckoutQuote>;
+  /** Cuts one bill for the orders in the sales module — receipt, shift, drawer and reports included. */
+  checkout: (orderIds: string[], payments: TenderInput[], note?: string) => Promise<Sale>;
+  /** Prints (again) the station's ticket for an order on this device's printer. */
+  printTicket: (orderId: string, stationId: string) => void;
   closeTable: (tableId: string) => Promise<void>;
   tableStatus: (tableId: string) => TableStatus;
   ordersForTable: (tableId: string) => Order[];
@@ -171,7 +189,21 @@ function toMenu(view: MenuView | undefined): Menu {
   };
 }
 
-const tableByCode: Record<string, Table> = Object.fromEntries(tables.map((t) => [t.name, t]));
+function toFloor(view: FloorView | undefined): Floor {
+  const zones: Zone[] = (view?.zones ?? []).filter((z) => z.is_active).map((z) => ({ id: z.id, name: z.name, color: z.color }));
+  const tables: Table[] = (view?.tables ?? [])
+    .filter((t) => t.is_active)
+    .map((t) => ({ id: t.id, zoneId: t.zone_id ?? '', name: t.code, seats: t.seats, x: dec(t.x), y: dec(t.y), shape: t.shape, rotation: t.rotation || undefined }));
+  return { zones, tables, ...floorSize(tables), tableById: byId(tables), tableByCode: Object.fromEntries(tables.map((t) => [t.name, t])) };
+}
+
+const CHANNEL_KEY: Record<Channel, 'counter' | 'dineIn' | 'takeaway' | 'delivery' | 'selfOrder'> = {
+  counter: 'counter',
+  dine_in: 'dineIn',
+  takeaway: 'takeaway',
+  delivery: 'delivery',
+  self_order: 'selfOrder',
+};
 
 function toItem(it: ApiItem, menu: Menu): OrderItem {
   const m = it.menu_item_id ? menu.menuById[it.menu_item_id] : undefined;
@@ -193,7 +225,7 @@ function toItem(it: ApiItem, menu: Menu): OrderItem {
   };
 }
 
-function toOrder(o: ApiOrder, menu: Menu): Order {
+function toOrder(o: ApiOrder, menu: Menu, tableByCode: Record<string, Table>): Order {
   return {
     id: o.id,
     queueNo: o.order_no,
@@ -210,9 +242,46 @@ function toOrder(o: ApiOrder, menu: Menu): Order {
 
 export function FnbProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
+  const t = useTranslations('fnb');
   const [live, setLive] = useState(false);
   const menuQ = useQuery({ queryKey: fnbKeys.menu, queryFn: fnbApi.menu, staleTime: 5 * 60_000 });
+  const floorQ = useQuery({ queryKey: fnbKeys.floor, queryFn: () => fnbApi.floor(), staleTime: 5 * 60_000 });
   const ordersQ = useQuery({ queryKey: fnbKeys.orders(true), queryFn: () => fnbApi.orders(true), refetchInterval: live ? 15_000 : 3_000, staleTime: 1_000 });
+  const settingsQ = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
+
+  const menu = useMemo(() => toMenu(menuQ.data), [menuQ.data]);
+  const floor = useMemo(() => toFloor(floorQ.data), [floorQ.data]);
+  const orders = useMemo(() => (ordersQ.data ?? []).map((o) => toOrder(o, menu, floor.tableByCode)), [ordersQ.data, menu, floor]);
+
+  // kitchen tickets: the stream handler is subscribed once, so it reads the latest menu, room
+  // and paper width through a ref rather than re-subscribing on every change
+  const printCtx = useRef({ menu, floor, width: 80 as 58 | 80, t });
+  printCtx.current = { menu, floor, width: paperWidthMm(settingsQ.data ?? null), t };
+  const printed = useRef(new Set<string>());
+  const ticketsFor = useCallback((order: Order, stationIds: string[], reprint = false): KitchenTicket[] => {
+    const { menu: m, floor: f, t: tr } = printCtx.current;
+    const where = order.tableId ? `${tr('table')} ${f.tableById[order.tableId]?.name ?? ''}` : `${tr('queue')} ${order.queueNo}`;
+    const out: KitchenTicket[] = [];
+    for (const sid of stationIds) {
+      const st = m.stationById[sid];
+      const items = order.items.filter((i) => i.stationId === sid && i.status !== 'void');
+      if (!st || items.length === 0) continue;
+      out.push({
+        station: st.name,
+        where,
+        orderNo: order.queueNo,
+        channel: tr(CHANNEL_KEY[order.channel]),
+        at: new Date(order.createdAt),
+        reprint,
+        lines: items.map((i) => ({ qty: i.qty, name: i.name, modifiers: i.modifierNames, note: i.note })),
+      });
+    }
+    return out;
+  }, []);
+  const printTickets = useCallback((tickets: KitchenTicket[]) => {
+    const { width, t: tr } = printCtx.current;
+    printKitchenTickets(tickets, { order: tr('orderNo'), reprint: tr('reprint') }, width);
+  }, []);
 
   // the stream: an event carries the whole order, so it is merged straight into the list
   useEffect(() => {
@@ -221,10 +290,25 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       token,
       (ev) => {
         const order = ev.order;
+        if (ev.kind === 'floor') {
+          void qc.invalidateQueries({ queryKey: fnbKeys.floor });
+          void qc.invalidateQueries({ queryKey: fnbKeys.floorAll });
+          void qc.invalidateQueries({ queryKey: fnbKeys.tables });
+          return;
+        }
         if (ev.kind === 'table' || !order) {
           // a table got a new customer code: the QR page redraws it
           void qc.invalidateQueries({ queryKey: fnbKeys.tables });
           return;
+        }
+        if (ev.kind === 'created') {
+          // a new order: print its tickets for the stations this device prints for, once each
+          const { menu: m, floor: f } = printCtx.current;
+          const o = toOrder(order, m, f.tableByCode);
+          const todo = readPrintStations().filter((sid) => m.stationById[sid]?.output !== 'kds' && !printed.current.has(`${o.id}:${sid}`));
+          todo.forEach((sid) => printed.current.add(`${o.id}:${sid}`));
+          const tickets = ticketsFor(o, todo);
+          if (tickets.length > 0) printTickets(tickets);
         }
         qc.setQueryData<ApiOrder[]>(fnbKeys.orders(true), (cur) => {
           const list = cur ?? [];
@@ -239,17 +323,15 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       },
       setLive,
     );
-  }, [qc]);
+  }, [qc, ticketsFor, printTickets]);
 
-  const menu = useMemo(() => toMenu(menuQ.data), [menuQ.data]);
-  const orders = useMemo(() => (ordersQ.data ?? []).map((o) => toOrder(o, menu)), [ordersQ.data, menu]);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: fnbKeys.orders(true) }), [qc]);
 
   const create = useMutation({
     mutationFn: (v: { lines: CartLine[]; channel: Channel; tableId?: string; guests?: number }) =>
       fnbApi.createOrder({
         channel: v.channel,
-        table_code: v.tableId ? tables.find((t) => t.id === v.tableId)?.name : undefined,
+        table_code: v.tableId ? floor.tableById[v.tableId]?.name : undefined,
         guests: v.guests,
         lines: v.lines.map((l) => ({ menu_item_id: l.menuItemId, qty: l.qty, modifier_ids: l.modifierIds, note: l.note })),
       }),
@@ -261,6 +343,10 @@ export function FnbProvider({ children }: { children: ReactNode }) {
   });
   const orderStatus = useMutation({
     mutationFn: (v: { orderId: string; status: 'paid' | 'closed' | 'void' }) => fnbApi.setOrderStatus(v.orderId, v.status),
+    onSuccess: () => void refresh(),
+  });
+  const pay = useMutation({
+    mutationFn: (v: { orderIds: string[]; payments: TenderInput[]; note?: string }) => fnbApi.checkout({ order_ids: v.orderIds, payments: v.payments, note: v.note }),
     onSuccess: () => void refresh(),
   });
 
@@ -284,10 +370,11 @@ export function FnbProvider({ children }: { children: ReactNode }) {
     return {
       menu,
       menuLoading: menuQ.isPending,
+      floor,
       live,
       orders,
       nextQueue: todayMax + 1,
-      placeOrder: async (lines, channel, opts = {}) => toOrder(await create.mutateAsync({ lines, channel, ...opts }), menu),
+      placeOrder: async (lines, channel, opts = {}) => toOrder(await create.mutateAsync({ lines, channel, ...opts }), menu, floor.tableByCode),
       setItemStatus: async (orderId, itemId, status) => {
         await itemStatus.mutateAsync({ orderId, itemId, status });
       },
@@ -300,6 +387,12 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       payOrder: async (orderId) => {
         await orderStatus.mutateAsync({ orderId, status: 'paid' });
       },
+      quote: (orderIds) => fnbApi.quote(orderIds),
+      checkout: (orderIds, payments, note) => pay.mutateAsync({ orderIds, payments, note }),
+      printTicket: (orderId, stationId) => {
+        const o = orders.find((x) => x.id === orderId);
+        if (o) printTickets(ticketsFor(o, [stationId], true));
+      },
       closeTable: async (tableId) => {
         for (const o of ordersForTable(tableId)) await fnbApi.setOrderStatus(o.id, 'closed');
         await refresh();
@@ -309,7 +402,7 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       lineTotal,
       orderTotal,
     };
-  }, [menu, menuQ.isPending, live, orders, create, itemStatus, orderStatus, refresh]);
+  }, [menu, menuQ.isPending, floor, live, orders, create, itemStatus, orderStatus, pay, refresh, ticketsFor, printTickets]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
