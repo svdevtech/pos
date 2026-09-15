@@ -16,7 +16,7 @@ await p.getByLabel(L('auth.storeCode')).fill('BBR');
 await p.getByLabel(L('auth.username')).fill('owner');
 await p.getByLabel(L('auth.password')).first().fill(process.env.E2E_PASS ?? 'Owner12345');
 await p.getByRole('button',{name:L('auth.signIn'),exact:true}).click();
-await p.waitForURL(/\/(dashboard|pos)/,{timeout:45000});
+await p.waitForURL(/\/(dashboard|pos)/,{timeout:45000,waitUntil:'domcontentloaded'});
 const call = (path, init) => p.evaluate(async ([pa,i])=>{
   const s=JSON.parse(localStorage.getItem('pos.session')??'{}');
   const r=await fetch('/api/v1'+pa,{...i,headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token,...(i?.headers??{})}});

@@ -214,7 +214,11 @@ func (p MenuPromo) RunsAt(now time.Time) bool {
 		return false
 	}
 	hhmm := now.Format("15:04")
-	return hhmm >= p.StartTime && hhmm <= p.EndTime
+	if p.StartTime <= p.EndTime {
+		return hhmm >= p.StartTime && hhmm <= p.EndTime
+	}
+	// a window that runs past midnight (22:00-01:00): the day list says which days the hours open on
+	return hhmm >= p.StartTime || hhmm <= p.EndTime
 }
 
 // PriceFor is the item's price under the promotion.

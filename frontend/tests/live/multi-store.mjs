@@ -99,7 +99,7 @@ const login = async (page, { store, user, pass, platformAdmin = false }) => {
   await page.getByLabel(L('auth.username')).fill(user);
   await page.getByLabel(L('auth.password')).first().fill(pass);
   await page.getByRole('button', { name: L('auth.signIn'), exact: true }).click();
-  await page.waitForURL(/\/(dashboard|pos|admin)/, { timeout: 60_000 });
+  await page.waitForURL(/\/(dashboard|pos|admin)/, { timeout: 60_000, waitUntil: 'domcontentloaded' });
 };
 
 const main = async () => {
@@ -347,7 +347,7 @@ const main = async () => {
     await admin.waitForTimeout(2500);
     const row = admin.getByRole('row').filter({ hasText: NEW_STORE.code }).first();
     await row.getByRole('button', { name: L('admin.enterStore') }).click();
-    await admin.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await admin.waitForURL(/\/dashboard/, { timeout: 30_000, waitUntil: 'domcontentloaded' });
     await admin.waitForTimeout(3000);
     const asNew = await api(admin, '/products?page=1&page_size=1');
     assert(asNew.body.total === 1, `admin inside the new store sees ${asNew.body.total} products`);

@@ -87,7 +87,7 @@ const login = async (page) => {
   await page.getByLabel(L('auth.username')).fill(USER);
   await page.getByLabel(L('auth.password')).first().fill(PASS);
   await page.getByRole('button', { name: L('auth.signIn'), exact: true }).click();
-  await page.waitForURL(/\/(dashboard|pos|fnb)/, { timeout: 45_000 });
+  await page.waitForURL(/\/(dashboard|pos|fnb)/, { timeout: 45_000, waitUntil: 'domcontentloaded' });
 };
 
 /** Shuts the receipt window; Escape leaves the modal up and it then swallows the next click. */

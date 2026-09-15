@@ -118,7 +118,7 @@ const main = async () => {
 
   await step('A2', 'เข้าสู่ระบบด้วยรหัสที่ถูกต้อง', async () => {
     await login(page);
-    await page.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000 });
+    await page.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000, waitUntil: 'domcontentloaded' });
     return new URL(page.url()).pathname;
   });
 
@@ -379,7 +379,7 @@ const main = async () => {
   const mob = await phone.newPage();
   await step('H1', 'เช็คสต็อกด้วยมือถือ: สแกนแล้วเห็นยอด', async () => {
     await login(mob);
-    await mob.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000 });
+    await mob.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000, waitUntil: 'domcontentloaded' });
     await mob.goto(`${BASE}/inventory/check`, { waitUntil: 'domcontentloaded' });
     const scan = mob.getByTestId('check-scan');
     await scan.waitFor({ timeout: 60_000 });
@@ -614,7 +614,7 @@ const main = async () => {
     const c = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'th-TH' });
     const cp = await c.newPage();
     await login(cp, `${RUN.toLowerCase()}-cashier`, 'Cashier12345');
-    await cp.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000 });
+    await cp.waitForURL(/\/(dashboard|pos)/, { timeout: 45_000, waitUntil: 'domcontentloaded' });
     const api403 = await api(cp, '/store/data/backups');
     const rules403 = await api(cp, '/inventory/conversion-rules', { method: 'POST', body: JSON.stringify({ from_product_id: state.pack.id, to_product_id: state.unit.id, factor: '6' }) });
     await cp.goto(`${BASE}/settings/data`, { waitUntil: 'domcontentloaded' });
