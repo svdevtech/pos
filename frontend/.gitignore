@@ -37,3 +37,7 @@ next-env.d.ts
 tests/fixtures/*.y4m
 tests/live/report.json
 tests/live/shots/
+
+# built by `npm run build:fnb3d` (the 3D floor plan micro-app)
+/public/fnb3d
+/fnb3d/node_modules

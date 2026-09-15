@@ -4,9 +4,22 @@
     {
       "name": "frontend-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "cwd": "frontend",
       "port": 3010
+    },
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "go",
+      "runtimeArgs": [
+        "run",
+        "./cmd/api"
+      ],
+      "cwd": "backend",
+      "port": 8090
     }
   ]
 }

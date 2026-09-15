@@ -1,0 +1,56 @@
+'use client';
+
+/**
+ * Hosts the 3D floor plan, which is a separate Vite micro-app served from /fnb3d/ and embedded
+ * in an iframe.
+ *
+ * Not for bundle size: @react-three/fiber augments JSX.IntrinsicElements globally, and inside
+ * the Next TypeScript program that made every MUI polymorphic component fail with TS2590. A
+ * separate program is the clean cure, and the iframe is the seam. State crosses it as messages
+ * — a status per table and the selection go in, taps and the frame rate come out.
+ */
+
+import { useEffect, useRef } from 'react';
+import { tables } from '@/lib/fnb/mock';
+import type { FloorPlanProps } from '@/components/fnb/floorStatus';
+
+const SRC = '/fnb3d/index.html';
+
+export default function FloorPlan3DFrame({ statusOf, selectedId, onSelect, onFps }: FloorPlanProps) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const ready = useRef(false);
+  // the latest callbacks, so the single message listener never goes stale
+  const cb = useRef({ onSelect, onFps });
+  cb.current = { onSelect, onFps };
+
+  const send = () => {
+    const w = frame.current?.contentWindow;
+    if (!w || !ready.current) return;
+    const statuses = Object.fromEntries(tables.map((t) => [t.id, statusOf(t.id)]));
+    w.postMessage({ type: 'state', statuses, selectedId }, '*');
+  };
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow) return;
+      const m = e.data as { type?: string; id?: string; fps?: number };
+      if (m?.type === 'ready') {
+        ready.current = true;
+        send();
+      } else if (m?.type === 'select' && m.id) {
+        cb.current.onSelect(m.id);
+      } else if (m?.type === 'fps' && typeof m.fps === 'number') {
+        cb.current.onFps?.(m.fps);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // every render of the host may carry a new status map; push it across
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(send);
+
+  return <iframe ref={frame} src={SRC} title="floor-plan-3d" data-testid="floor-3d" style={{ width: '100%', height: '100%', border: 0, display: 'block', background: '#0b1220' }} />;
+}
