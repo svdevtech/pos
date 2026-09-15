@@ -64,6 +64,77 @@ export interface MenuItem {
   is_active: boolean;
   modifier_group_ids: string[];
   recipe?: Recipe | null;
+  /** What the item costs right now under a running promotion (computed by the API when the menu is read). */
+  promo_price?: Money | null;
+  promo_name?: string;
+}
+
+/** Happy hour and the like: a price rule on a dish or a category, by day of week and time. */
+export interface MenuPromo {
+  id: string;
+  name: string;
+  kind: 'percent' | 'amount' | 'price';
+  value: Money;
+  category_id?: string | null;
+  menu_item_id?: string | null;
+  /** 0 = Sunday … 6 = Saturday */
+  days: number[];
+  start_time: string;
+  end_time: string;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  is_active: boolean;
+  sort: number;
+}
+
+export interface Reservation {
+  id: string;
+  kind: 'reservation' | 'waitlist';
+  name: string;
+  phone?: string;
+  party_size: number;
+  at: string;
+  table_code?: string;
+  note?: string;
+  status: 'booked' | 'waiting' | 'seated' | 'cancelled' | 'no_show';
+  created_at: string;
+}
+
+export interface MenuLine {
+  menu_item_id?: string | null;
+  name: string;
+  category: string;
+  qty: Money;
+  orders: number;
+  revenue: Money;
+  cost: Money;
+  margin: Money;
+  margin_pct: Money;
+  unit_margin: Money;
+  share_pct: Money;
+  class: 'star' | 'plowhorse' | 'puzzle' | 'dog';
+}
+export interface MenuReport {
+  from: string;
+  to: string;
+  lines: MenuLine[];
+  qty: Money;
+  revenue: Money;
+  cost: Money;
+  margin: Money;
+}
+export interface IngredientReport {
+  from: string;
+  to: string;
+  lines: { product_id: string; name: string; unit: string; used: Money; used_cost: Money; waste: Money; waste_cost: Money; on_hand: Money }[];
+  used_cost: Money;
+  waste_cost: Money;
+}
+export interface HoursReport {
+  from: string;
+  to: string;
+  days: number;
+  lines: { hour: number; orders: number; items: Money; revenue: Money }[];
 }
 
 export interface Modifier {
@@ -115,6 +186,8 @@ export interface OrderItem {
   unit_price: Money;
   /** What the recipe took off stock, at average cost, once it was made. */
   cost: Money;
+  promo_name?: string;
+  list_price?: Money;
   seat?: number;
   course: number;
   note?: string;
@@ -173,7 +246,7 @@ export interface TableToken {
 
 /** One event from /fnb/stream: an order (the whole order rides along, nothing to fetch), a table whose customer code changed, or a change to the room. */
 export interface OrderEvent {
-  kind: 'created' | 'updated' | 'table' | 'floor';
+  kind: 'created' | 'updated' | 'table' | 'floor' | 'reservations';
   order?: Order;
   table?: TableToken;
 }
@@ -233,6 +306,8 @@ export const fnbKeys = {
   tables: ['fnb', 'tables'] as const,
   floor: ['fnb', 'floor'] as const,
   floorAll: ['fnb', 'floor', 'all'] as const,
+  promos: ['fnb', 'promos'] as const,
+  reservations: (date: string) => ['fnb', 'reservations', date] as const,
 };
 
 export const fnbApi = {
@@ -243,8 +318,16 @@ export const fnbApi = {
   saveTable: (t: Partial<FloorTable>) => api.put<FloorTable>('/fnb/floor/tables', t),
   /** Every live order of a table goes to another table; an occupied target merges them. */
   moveTable: (from: string, to: string) => api.post<Order[]>(`/fnb/tables/${encodeURIComponent(from)}/move`, { to }),
-  /** The given lines become a new order on the same table, to be paid on their own. */
-  splitOrder: (orderId: string, itemIds: string[]) => api.post<Order>(`/fnb/orders/${orderId}/split`, { item_ids: itemIds }),
+  /** The given lines (or part of a line's quantity) become a new order on the same table, to be paid on their own. */
+  splitOrder: (orderId: string, lines: { item_id: string; qty?: number }[]) => api.post<Order>(`/fnb/orders/${orderId}/split`, { lines }),
+  promos: (activeOnly = true) => api.get<MenuPromo[]>(`/fnb/menu/promos${activeOnly ? '' : '?all=1'}`),
+  savePromo: (p: Partial<MenuPromo>) => api.put<MenuPromo>('/fnb/menu/promos', p),
+  reservations: (date: string) => api.get<Reservation[]>(`/fnb/reservations?date=${date}`),
+  saveReservation: (r: Partial<Reservation>) => api.put<Reservation>('/fnb/reservations', r),
+  setReservationStatus: (id: string, status: string, tableCode?: string) => api.post<Reservation>(`/fnb/reservations/${id}/status`, { status, table_code: tableCode ?? '' }),
+  reportMenu: (from: string, to: string) => api.get<MenuReport>(`/fnb/reports/menu?from=${from}&to=${to}`),
+  reportIngredients: (from: string, to: string) => api.get<IngredientReport>(`/fnb/reports/ingredients?from=${from}&to=${to}`),
+  reportHours: (from: string, to: string) => api.get<HoursReport>(`/fnb/reports/hours?from=${from}&to=${to}`),
   quote: (orderIds: string[]) => api.get<CheckoutQuote>(`/fnb/checkout/quote?ids=${encodeURIComponent(orderIds.join(','))}`),
   /** The orders become one bill in the sales module; the sale comes back for the receipt. */
   checkout: (input: CheckoutInput) => api.post<Sale>('/fnb/checkout', input),

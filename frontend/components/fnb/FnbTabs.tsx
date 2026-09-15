@@ -8,6 +8,8 @@
  * the strip was built from.
  */
 
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import EventNoteIcon from '@mui/icons-material/EventNote';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
@@ -63,7 +65,9 @@ export default function FnbTabs() {
       <Tab href="/fnb/kitchen" active={path.startsWith('/fnb/kitchen')} testId="fnb-tab-kitchen" icon={<RestaurantIcon fontSize="small" />} label={t('kitchen')} />
       <Tab href="/fnb/floor" active={path.startsWith('/fnb/floor')} testId="fnb-tab-floor" icon={<TableRestaurantIcon fontSize="small" />} label={t('floor')} />
       <Tab href="/fnb/queue" active={path.startsWith('/fnb/queue')} testId="fnb-tab-queue" icon={<TvIcon fontSize="small" />} label={t('queueScreen')} />
+      <Tab href="/fnb/reservations" active={path.startsWith('/fnb/reservations')} testId="fnb-tab-reservations" icon={<EventNoteIcon fontSize="small" />} label={t('res.title')} />
       <Tab href="/fnb/tables" active={path.startsWith('/fnb/tables')} testId="fnb-tab-tables" icon={<QrCode2Icon fontSize="small" />} label={t('tablesQr')} />
+      {hasRole(...MUTATING_ROLES) && <Tab href="/fnb/reports" active={path.startsWith('/fnb/reports')} testId="fnb-tab-reports" icon={<AssessmentIcon fontSize="small" />} label={t('rep.title')} />}
       {hasRole(...MUTATING_ROLES) && <Tab href="/fnb/settings" active={path.startsWith('/fnb/settings')} testId="fnb-tab-settings" icon={<SettingsIcon fontSize="small" />} label={t('cfg.title')} />}
     </Box>
   );

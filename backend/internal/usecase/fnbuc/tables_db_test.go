@@ -84,12 +84,12 @@ func TestSplitOrderMovesLinesToANewOrder(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, o.Items, 3)
 
-	_, err = f.svc.SplitOrder(ctx, f.store, actor, o.ID, []uuid.UUID{o.Items[0].ID, o.Items[1].ID, o.Items[2].ID})
+	_, err = f.svc.SplitOrder(ctx, f.store, actor, o.ID, []SplitLine{{ItemID: o.Items[0].ID}, {ItemID: o.Items[1].ID}, {ItemID: o.Items[2].ID}})
 	require.ErrorIs(t, err, domain.ErrValidation, "cannot take every line")
-	_, err = f.svc.SplitOrder(ctx, f.store, actor, o.ID, []uuid.UUID{uuid.New()})
+	_, err = f.svc.SplitOrder(ctx, f.store, actor, o.ID, []SplitLine{{ItemID: uuid.New()}})
 	require.ErrorIs(t, err, domain.ErrOrderNotFound)
 
-	part, err := f.svc.SplitOrder(ctx, f.store, actor, o.ID, []uuid.UUID{o.Items[1].ID})
+	part, err := f.svc.SplitOrder(ctx, f.store, actor, o.ID, []SplitLine{{ItemID: o.Items[1].ID}})
 	require.NoError(t, err)
 	require.Equal(t, "5", part.TableCode)
 	require.Len(t, part.Items, 1)

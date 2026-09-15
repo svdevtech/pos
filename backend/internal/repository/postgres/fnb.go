@@ -482,9 +482,9 @@ func (FnbRepo) InsertOrder(ctx context.Context, o *domain.Order) error {
 }
 
 func (FnbRepo) InsertOrderItem(ctx context.Context, it *domain.OrderItem) error {
-	if err := Q(ctx).QueryRow(ctx, `INSERT INTO order_items (store_id, order_id, menu_item_id, station_id, name, qty, unit_price, cost, seat, course, note, status, deducted, sort)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,0),$10,NULLIF($11,''),$12,$13,$14) RETURNING id, sent_at`,
-		it.StoreID, it.OrderID, it.MenuItemID, it.StationID, it.Name, it.Qty, it.UnitPrice, it.Cost, it.Seat, it.Course, it.Note, string(it.Status), it.Deducted, it.Sort).Scan(&it.ID, &it.SentAt); err != nil {
+	if err := Q(ctx).QueryRow(ctx, `INSERT INTO order_items (store_id, order_id, menu_item_id, station_id, name, qty, unit_price, cost, seat, course, note, status, deducted, sort, promo_id, promo_name, list_price)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,0),$10,NULLIF($11,''),$12,$13,$14,$15,NULLIF($16,''),NULLIF($17,0)) RETURNING id, sent_at`,
+		it.StoreID, it.OrderID, it.MenuItemID, it.StationID, it.Name, it.Qty, it.UnitPrice, it.Cost, it.Seat, it.Course, it.Note, string(it.Status), it.Deducted, it.Sort, it.PromoID, it.PromoName, it.ListPrice).Scan(&it.ID, &it.SentAt); err != nil {
 		return err
 	}
 	for i := range it.Modifiers {
@@ -638,7 +638,8 @@ func (FnbRepo) itemsFor(ctx context.Context, storeID uuid.UUID, orderIDs []uuid.
 	if len(orderIDs) == 0 {
 		return out, nil
 	}
-	rows, err := Q(ctx).Query(ctx, `SELECT id, store_id, order_id, menu_item_id, station_id, name, qty::text, unit_price::text, cost::text, COALESCE(seat,0), course, COALESCE(note,''), status, deducted, sort, sent_at, ready_at, served_at
+	rows, err := Q(ctx).Query(ctx, `SELECT id, store_id, order_id, menu_item_id, station_id, name, qty::text, unit_price::text, cost::text, COALESCE(seat,0), course, COALESCE(note,''), status, deducted, sort, sent_at, ready_at, served_at,
+			promo_id, COALESCE(promo_name,''), COALESCE(list_price,0)::text
 		FROM order_items WHERE store_id=$1 AND order_id = ANY($2) ORDER BY order_id, sort, sent_at`, storeID, orderIDs)
 	if err != nil {
 		return nil, err
@@ -646,12 +647,12 @@ func (FnbRepo) itemsFor(ctx context.Context, storeID uuid.UUID, orderIDs []uuid.
 	itemIdx := map[uuid.UUID][2]int{}
 	for rows.Next() {
 		var it domain.OrderItem
-		var qty, price, cost, status string
-		if err := rows.Scan(&it.ID, &it.StoreID, &it.OrderID, &it.MenuItemID, &it.StationID, &it.Name, &qty, &price, &cost, &it.Seat, &it.Course, &it.Note, &status, &it.Deducted, &it.Sort, &it.SentAt, &it.ReadyAt, &it.ServedAt); err != nil {
+		var qty, price, cost, status, list string
+		if err := rows.Scan(&it.ID, &it.StoreID, &it.OrderID, &it.MenuItemID, &it.StationID, &it.Name, &qty, &price, &cost, &it.Seat, &it.Course, &it.Note, &status, &it.Deducted, &it.Sort, &it.SentAt, &it.ReadyAt, &it.ServedAt, &it.PromoID, &it.PromoName, &list); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		it.Qty, it.UnitPrice, it.Cost, it.Status = dec(qty), dec(price), dec(cost), domain.ItemStatus(status)
+		it.Qty, it.UnitPrice, it.Cost, it.Status, it.ListPrice = dec(qty), dec(price), dec(cost), domain.ItemStatus(status), dec(list)
 		it.Modifiers = []domain.OrderItemModifier{}
 		itemIdx[it.ID] = [2]int{0, len(out[it.OrderID])}
 		out[it.OrderID] = append(out[it.OrderID], it)

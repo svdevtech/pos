@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/svdev/pos/internal/usecase/reportuc"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
@@ -40,7 +42,16 @@ type FnbService interface {
 	SaveZone(ctx context.Context, storeID uuid.UUID, z domain.FloorZone) (*domain.FloorZone, error)
 	SaveTable(ctx context.Context, storeID uuid.UUID, t domain.FloorTable) (*domain.FloorTable, error)
 	MoveTable(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, from, to string) ([]domain.Order, error)
-	SplitOrder(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, orderID uuid.UUID, itemIDs []uuid.UUID) (*domain.Order, error)
+	SplitOrder(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, orderID uuid.UUID, lines []fnbuc.SplitLine) (*domain.Order, error)
+	Promos(ctx context.Context, storeID uuid.UUID, activeOnly bool) ([]domain.MenuPromo, error)
+	SavePromo(ctx context.Context, storeID uuid.UUID, p domain.MenuPromo) (*domain.MenuPromo, error)
+	Reservations(ctx context.Context, storeID uuid.UUID, day time.Time) ([]domain.Reservation, error)
+	SaveReservation(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, r domain.Reservation) (*domain.Reservation, error)
+	SetReservationStatus(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, id uuid.UUID, status, tableCode string) (*domain.Reservation, error)
+	MenuReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*fnbuc.MenuReport, error)
+	IngredientReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*fnbuc.IngredientReport, error)
+	HoursReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*fnbuc.HoursReport, error)
+	HQ(ctx context.Context, from, to time.Time) (*fnbuc.HQReport, error)
 }
 
 // streamEvents writes order events as server-sent events until the client goes away. A comment
@@ -220,6 +231,108 @@ func (s *Server) mountFnb(r chi.Router) {
 			ok(w, out)
 		})
 
+		// ---- time-of-day promotions
+		r.With(requireRole(rolesAll...)).Get("/menu/promos", func(w http.ResponseWriter, r *http.Request) {
+			out, err := s.Fnb.Promos(r.Context(), storeID(r), queryStr(r, "all") != "1")
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesManage...)).Put("/menu/promos", func(w http.ResponseWriter, r *http.Request) {
+			var in domain.MenuPromo
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SavePromo(r.Context(), storeID(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+
+		// ---- the reservation book and the waitlist
+		r.With(requireRole(rolesSell...)).Get("/reservations", func(w http.ResponseWriter, r *http.Request) {
+			day := time.Now()
+			if v := queryStr(r, "date"); v != "" {
+				d, err := time.ParseInLocation("2006-01-02", v, reportuc.Location)
+				if err != nil {
+					fail(w, r, domain.ErrValidation.With("field", "date"))
+					return
+				}
+				day = d
+			}
+			out, err := s.Fnb.Reservations(r.Context(), storeID(r), day)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesSell...)).Put("/reservations", func(w http.ResponseWriter, r *http.Request) {
+			var in domain.Reservation
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SaveReservation(r.Context(), storeID(r), fnbActor(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesSell...)).Post("/reservations/{id}/status", func(w http.ResponseWriter, r *http.Request) {
+			id, err := uuid.Parse(chi.URLParam(r, "id"))
+			if err != nil {
+				fail(w, r, domain.ErrValidation.With("field", "id"))
+				return
+			}
+			var in struct {
+				Status    string `json:"status"`
+				TableCode string `json:"table_code"`
+			}
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.SetReservationStatus(r.Context(), storeID(r), fnbActor(r), id, in.Status, in.TableCode)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+
+		// ---- reports (managers): ?from&to like the other reports, ?format=csv for a file
+		fnbReport := func(name string, run func(ctx context.Context, storeID uuid.UUID, from, to time.Time) (reportuc.Tabular, error)) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				rg, err := reportRange(r)
+				if err != nil {
+					fail(w, r, err)
+					return
+				}
+				out, err := run(r.Context(), storeID(r), rg.Start, rg.End.AddDate(0, 0, 1))
+				if err != nil {
+					fail(w, r, err)
+					return
+				}
+				report(w, r, name, rg.From, rg.To, out)
+			}
+		}
+		r.With(requireRole(rolesManage...)).Get("/reports/menu", fnbReport("fnb-menu", func(ctx context.Context, id uuid.UUID, from, to time.Time) (reportuc.Tabular, error) {
+			return s.Fnb.MenuReport(ctx, id, from, to)
+		}))
+		r.With(requireRole(rolesManage...)).Get("/reports/ingredients", fnbReport("fnb-ingredients", func(ctx context.Context, id uuid.UUID, from, to time.Time) (reportuc.Tabular, error) {
+			return s.Fnb.IngredientReport(ctx, id, from, to)
+		}))
+		r.With(requireRole(rolesManage...)).Get("/reports/hours", fnbReport("fnb-hours", func(ctx context.Context, id uuid.UUID, from, to time.Time) (reportuc.Tabular, error) {
+			return s.Fnb.HoursReport(ctx, id, from, to)
+		}))
+
 		// ---- live updates for the kitchen, the floor and the counter
 		r.With(requireRole(rolesAll...)).Get("/stream", func(w http.ResponseWriter, r *http.Request) {
 			streamEvents(w, r, s.Fnb.Subscribe(r.Context(), storeID(r)))
@@ -284,13 +397,18 @@ func (s *Server) mountFnb(r chi.Router) {
 				return
 			}
 			var in struct {
-				ItemIDs []uuid.UUID `json:"item_ids"`
+				ItemIDs []uuid.UUID       `json:"item_ids"`
+				Lines   []fnbuc.SplitLine `json:"lines"`
 			}
 			if err := decode(r, &in); err != nil {
 				fail(w, r, err)
 				return
 			}
-			out, err := s.Fnb.SplitOrder(r.Context(), storeID(r), fnbActor(r), id, in.ItemIDs)
+			lines := in.Lines
+			for _, id := range in.ItemIDs {
+				lines = append(lines, fnbuc.SplitLine{ItemID: id})
+			}
+			out, err := s.Fnb.SplitOrder(r.Context(), storeID(r), fnbActor(r), id, lines)
 			if err != nil {
 				fail(w, r, err)
 				return

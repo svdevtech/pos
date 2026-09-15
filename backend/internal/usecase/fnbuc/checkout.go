@@ -107,6 +107,9 @@ func priceOrders(orders []*domain.Order, m fnbMoney, items map[uuid.UUID]domain.
 				}
 				desc += " (" + strings.Join(names, ", ") + ")"
 			}
+			if it.PromoName != "" {
+				desc += " [" + it.PromoName + "]"
+			}
 			cl := salesuc.CartLine{Description: desc, Qty: it.Qty, UnitPrice: domain.Money(unit)}
 			if it.Qty.IsPositive() {
 				cl.CostAvg = domain.Money(it.Cost.Div(it.Qty))

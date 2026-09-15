@@ -43,6 +43,19 @@ func storeID(r *http.Request) uuid.UUID { return ScopeFrom(r.Context()).StoreID 
 func (s *Server) mountAdmin(r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Use(requireRole("platform_admin"))
+		r.Get("/hq", func(w http.ResponseWriter, r *http.Request) {
+			rg, err := reportRange(r)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.HQ(r.Context(), rg.Start, rg.End.AddDate(0, 0, 1))
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			report(w, r, "hq", rg.From, rg.To, out)
+		})
 		r.Get("/stores", func(w http.ResponseWriter, r *http.Request) {
 			out, err := s.Admin.ListStores(r.Context())
 			if err != nil {

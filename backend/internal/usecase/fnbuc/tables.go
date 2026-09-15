@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 
 	"github.com/svdev/pos/internal/domain"
 	"github.com/svdev/pos/internal/repository/postgres"
@@ -67,10 +68,17 @@ func (s *Service) MoveTable(ctx context.Context, storeID uuid.UUID, actor Actor,
 	return out, nil
 }
 
-// SplitOrder takes some of an order's lines into a new order on the same table, so they can be
-// paid on their own bill. Lines move whole; the rest of the order stays as it was.
-func (s *Service) SplitOrder(ctx context.Context, storeID uuid.UUID, actor Actor, orderID uuid.UUID, itemIDs []uuid.UUID) (*domain.Order, error) {
-	if len(itemIDs) == 0 {
+// SplitLine names a line to take, and optionally how much of it (less than the line's
+// quantity carves that much off into a line of its own; zero or the full quantity takes it whole).
+type SplitLine struct {
+	ItemID uuid.UUID       `json:"item_id"`
+	Qty    decimal.Decimal `json:"qty,omitempty"`
+}
+
+// SplitOrder takes some of an order's lines — or part of a line's quantity — into a new order
+// on the same table, so they can be paid on their own bill. The rest stays as it was.
+func (s *Service) SplitOrder(ctx context.Context, storeID uuid.UUID, actor Actor, orderID uuid.UUID, lines []SplitLine) (*domain.Order, error) {
+	if len(lines) == 0 {
 		return nil, domain.ErrValidation.With("field", "item_ids")
 	}
 	var fresh *domain.Order
@@ -82,24 +90,38 @@ func (s *Service) SplitOrder(ctx context.Context, storeID uuid.UUID, actor Actor
 		if cur.Status != domain.OrderOpen {
 			return domain.ErrOrderClosed
 		}
-		want := map[uuid.UUID]bool{}
-		for _, id := range itemIDs {
-			want[id] = true
+		want := map[uuid.UUID]decimal.Decimal{}
+		for _, l := range lines {
+			want[l.ItemID] = l.Qty
 		}
-		live, taking := 0, 0
+		var itemIDs []uuid.UUID
+		live, taking, partial := 0, 0, 0
 		for _, it := range cur.Items {
 			if it.Status == domain.ItemVoid {
 				continue
 			}
 			live++
-			if want[it.ID] {
-				taking++
+			q, ok := want[it.ID]
+			if !ok {
+				continue
 			}
+			taking++
+			if q.IsPositive() && q.LessThan(it.Qty) {
+				// part of the line: carve it off first, then move the new line
+				id, err := s.repo.SplitItem(ctx, storeID, it.ID, q.String())
+				if err != nil {
+					return err
+				}
+				itemIDs = append(itemIDs, id)
+				partial++
+				continue
+			}
+			itemIDs = append(itemIDs, it.ID)
 		}
 		if taking != len(want) {
 			return domain.ErrOrderNotFound.With("field", "item_ids")
 		}
-		if taking == live {
+		if taking == live && partial == 0 {
 			return domain.ErrValidation.With("reason", "nothing left on the original order")
 		}
 		now := time.Now()

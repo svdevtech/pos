@@ -50,6 +50,9 @@ export interface MenuItem {
   recipe?: RecipeLine[];
   /** Kitchen time in minutes, used by the KDS to colour a ticket that is running late. */
   prepMinutes: number;
+  /** Set while a promotion runs: the list price `price` replaced, and the promotion's name. */
+  listPrice?: number;
+  promoName?: string;
 }
 
 export interface Category {

@@ -75,6 +75,17 @@ func (s *Service) Menu(ctx context.Context, storeID uuid.UUID, activeOnly bool) 
 		if out.ModifierGroups, err = s.repo.ModifierGroups(ctx, storeID); err != nil {
 			return err
 		}
+		promos, err := s.repo.Promos(ctx, storeID, true)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		for i := range out.Items {
+			if price, p := promoPrice(out.Items[i], promos, now); p != nil {
+				pp := price
+				out.Items[i].PromoPrice, out.Items[i].PromoName = &pp, p.Name
+			}
+		}
 		settings, _ := s.stores.GetSettings(ctx, storeID)
 		out.DeductOn = deductOn(settings)
 		return nil
@@ -252,6 +263,10 @@ func (s *Service) CreateOrder(ctx context.Context, storeID uuid.UUID, actor Acto
 		settings, _ := s.stores.GetSettings(ctx, storeID)
 		when := deductOn(settings)
 		now := time.Now()
+		promos, err := s.repo.Promos(ctx, storeID, true)
+		if err != nil {
+			return err
+		}
 		no, err := s.repo.NextOrderNo(ctx, storeID, now)
 		if err != nil {
 			return err
@@ -277,6 +292,10 @@ func (s *Service) CreateOrder(ctx context.Context, storeID uuid.UUID, actor Acto
 				course = 1
 			}
 			it := &domain.OrderItem{StoreID: storeID, OrderID: order.ID, MenuItemID: ptr(item.ID), StationID: item.StationID, Name: item.Name, Qty: l.Qty, UnitPrice: item.Price, Seat: l.Seat, Course: course, Note: strings.TrimSpace(l.Note), Status: domain.ItemSent, Sort: i}
+			if price, p := promoPrice(item, promos, now); p != nil {
+				pid := p.ID
+				it.UnitPrice, it.ListPrice, it.PromoID, it.PromoName = price, item.Price, &pid, p.Name
+			}
 			for _, m := range mods {
 				mid := m.ID
 				it.Modifiers = append(it.Modifiers, domain.OrderItemModifier{ModifierID: &mid, Name: m.Name, PriceDelta: m.PriceDelta})

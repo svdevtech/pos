@@ -193,9 +193,15 @@ export default function OrderPage() {
                   <Typography fontWeight={700} lineHeight={1.2}>
                     {m.name}
                   </Typography>
-                  <Typography variant="body2" color="primary.main" fontWeight={700}>
+                  <Typography variant="body2" color={m.promoName ? 'warning.main' : 'primary.main'} fontWeight={700}>
                     {formatMoney(m.price, locale)}
+                    {m.listPrice !== undefined && (
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through', ml: 0.5 }}>
+                        {formatMoney(m.listPrice, locale)}
+                      </Typography>
+                    )}
                   </Typography>
+                  {m.promoName && <Chip size="small" color="warning" label={m.promoName} sx={{ mt: 0.5, height: 20, fontSize: 11, fontWeight: 700 }} data-testid={`promo-${m.id}`} />}
                 </Box>
               </MotionBox>
             ))}

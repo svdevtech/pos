@@ -20,6 +20,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SavingsIcon from '@mui/icons-material/Savings';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import SettingsIcon from '@mui/icons-material/Settings';
+import InsightsIcon from '@mui/icons-material/Insights';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
@@ -69,6 +70,7 @@ type NavKey =
   | 'settings'
   | 'ai'
   | 'stores'
+  | 'hq'
   | 'help';
 
 interface NavItem {
@@ -103,7 +105,10 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'help', href: '/help', icon: <MenuBookIcon /> },
 ];
 
-const ADMIN_ITEMS: NavItem[] = [{ key: 'stores', href: '/admin/stores', icon: <StorefrontIcon />, roles: ['platform_admin'] }];
+const ADMIN_ITEMS: NavItem[] = [
+  { key: 'stores', href: '/admin/stores', icon: <StorefrontIcon />, roles: ['platform_admin'] },
+  { key: 'hq', href: '/admin/hq', icon: <InsightsIcon />, roles: ['platform_admin'] },
+];
 
 function isActive(pathname: string, href: string): boolean {
   if (href === '/dashboard') return pathname === href;

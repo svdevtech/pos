@@ -9,12 +9,13 @@ import { useState } from 'react';
 import FloorSettings from '@/components/fnb/settings/FloorSettings';
 import MenuSettings from '@/components/fnb/settings/MenuSettings';
 import ModifierSettings from '@/components/fnb/settings/ModifierSettings';
+import PromoSettings from '@/components/fnb/settings/PromoSettings';
 import ShopSettings from '@/components/fnb/settings/ShopSettings';
 import StationSettings from '@/components/fnb/settings/StationSettings';
 import { useSession } from '@/components/Providers';
 import { MUTATING_ROLES } from '@/lib/auth/session';
 
-const TABS = ['menu', 'modifiers', 'stations', 'floor', 'shop'] as const;
+const TABS = ['menu', 'modifiers', 'promos', 'stations', 'floor', 'shop'] as const;
 
 /** Everything a manager sets up for the F&B side: the menu and its recipes, options, stations, the room, and the money/stock rules. */
 export default function FnbSettingsPage() {
@@ -38,6 +39,7 @@ export default function FnbSettingsPage() {
       </Tabs>
       {tab === 'menu' && <MenuSettings />}
       {tab === 'modifiers' && <ModifierSettings />}
+      {tab === 'promos' && <PromoSettings />}
       {tab === 'stations' && <StationSettings />}
       {tab === 'floor' && <FloorSettings />}
       {tab === 'shop' && <ShopSettings />}

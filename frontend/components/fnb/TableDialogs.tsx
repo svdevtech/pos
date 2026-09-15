@@ -1,8 +1,11 @@
 'use client';
 
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
+import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useLocale, useTranslations } from 'next-intl';
@@ -51,20 +54,28 @@ export function MoveTableDialog({ from, tables, statusOf, busy, onClose, onMove 
   );
 }
 
-/** Tick the dishes one part of the party pays for; they become their own bill. */
-export function SplitBillDialog({ orders, busy, onClose, onSplit }: { orders: Order[]; busy: boolean; onClose: () => void; onSplit: (picked: Record<string, string[]>) => void }) {
+/** What one part of the party pays for: a line, or so many of a line (item id → quantity taken). */
+export type SplitPick = Record<string, Record<string, number>>;
+
+/** Tick the dishes one part of the party pays for — or how many of a line — and they become their own bill. */
+export function SplitBillDialog({ orders, busy, onClose, onSplit }: { orders: Order[]; busy: boolean; onClose: () => void; onSplit: (picked: SplitPick) => void }) {
   const t = useTranslations('fnb');
   const locale = resolveLocale(useLocale());
-  const [picked, setPicked] = useState<Record<string, string[]>>({});
-  const toggle = (orderId: string, itemId: string) =>
+  const [picked, setPicked] = useState<SplitPick>({});
+  const qtyOf = (orderId: string, itemId: string) => picked[orderId]?.[itemId] ?? 0;
+  const setQty = (orderId: string, item: { id: string; qty: number }, q: number) =>
     setPicked((p) => {
-      const cur = p[orderId] ?? [];
-      return { ...p, [orderId]: cur.includes(itemId) ? cur.filter((x) => x !== itemId) : [...cur, itemId] };
+      const cur = { ...(p[orderId] ?? {}) };
+      const v = Math.max(0, Math.min(item.qty, q));
+      if (v === 0) delete cur[item.id];
+      else cur[item.id] = v;
+      return { ...p, [orderId]: cur };
     });
+  const toggle = (orderId: string, item: { id: string; qty: number }) => setQty(orderId, item, qtyOf(orderId, item.id) ? 0 : item.qty);
   const live = (o: Order) => o.items.filter((i) => i.status !== 'void');
-  const chosen = Object.values(picked).flat();
-  const total = orders.reduce((s, o) => s + live(o).filter((i) => (picked[o.id] ?? []).includes(i.id)).reduce((x, i) => x + i.unitPrice * i.qty, 0), 0);
-  const all = orders.every((o) => live(o).every((i) => (picked[o.id] ?? []).includes(i.id)));
+  const chosen = Object.values(picked).flatMap((m) => Object.values(m));
+  const total = orders.reduce((s, o) => s + live(o).reduce((x, i) => x + i.unitPrice * qtyOf(o.id, i.id), 0), 0);
+  const all = orders.every((o) => live(o).every((i) => qtyOf(o.id, i.id) >= i.qty));
   return (
     <GlassDialog
       open
@@ -92,13 +103,28 @@ export function SplitBillDialog({ orders, busy, onClose, onSplit }: { orders: Or
             {t('orderNo')} #{o.queueNo}
           </Typography>
           {live(o).map((it) => {
-            const on = (picked[o.id] ?? []).includes(it.id);
+            const q = qtyOf(o.id, it.id);
+            const on = q > 0;
             return (
-              <Stack key={it.id} direction="row" alignItems="center" spacing={1} onClick={() => toggle(o.id, it.id)} sx={{ py: 0.5, cursor: 'pointer', borderRadius: 1.5, '&:hover': { bgcolor: 'action.hover' } }} data-testid={`split-item-${it.id}`}>
+              <Stack key={it.id} direction="row" alignItems="center" spacing={1} onClick={() => toggle(o.id, it)} sx={{ py: 0.5, cursor: 'pointer', borderRadius: 1.5, '&:hover': { bgcolor: 'action.hover' } }} data-testid={`split-item-${it.id}`}>
                 <Checkbox checked={on} size="small" />
-                <Typography fontWeight={800} sx={{ minWidth: 28 }}>
-                  {it.qty}×
-                </Typography>
+                {it.qty > 1 ? (
+                  <Stack direction="row" alignItems="center" onClick={(e) => e.stopPropagation()} sx={{ minWidth: 96 }}>
+                    <IconButton size="small" onClick={() => setQty(o.id, it, q - 1)} disabled={q === 0} aria-label="less">
+                      <RemoveIcon fontSize="small" />
+                    </IconButton>
+                    <Typography fontWeight={800} sx={{ minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} data-testid={`split-qty-${it.id}`}>
+                      {q}/{it.qty}
+                    </Typography>
+                    <IconButton size="small" onClick={() => setQty(o.id, it, q + 1)} disabled={q >= it.qty} aria-label="more">
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                ) : (
+                  <Typography fontWeight={800} sx={{ minWidth: 28 }}>
+                    {it.qty}×
+                  </Typography>
+                )}
                 <Typography sx={{ flex: 1 }} noWrap>
                   {it.emoji} {it.name}
                   {it.modifierNames.length > 0 && (
@@ -109,7 +135,7 @@ export function SplitBillDialog({ orders, busy, onClose, onSplit }: { orders: Or
                   )}
                 </Typography>
                 <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {formatMoney(it.unitPrice * it.qty, locale)}
+                  {formatMoney(it.unitPrice * (on ? q : it.qty), locale)}
                 </Typography>
               </Stack>
             );

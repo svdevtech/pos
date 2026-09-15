@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import FloorPlan2D from '@/components/fnb/FloorPlan2D';
 import FloorPlan3DFrame from '@/components/fnb/FloorPlan3DFrame';
 import { STATUS_COLOR } from '@/components/fnb/floorStatus';
-import { MoveTableDialog, SplitBillDialog } from '@/components/fnb/TableDialogs';
+import { MoveTableDialog, SplitBillDialog, type SplitPick } from '@/components/fnb/TableDialogs';
 import { GlassButton, GlassDialog } from '@/components/glass';
 import ReceiptDialog from '@/components/pos/ReceiptPrint';
 import TenderDialog from '@/components/pos/TenderDialog';
@@ -102,16 +102,18 @@ export default function FloorPage() {
   };
   // split: the ticked lines of each order become an order of their own (an order whose every
   // line is ticked simply goes as it is), then those orders are paid together
-  const split = async (picked: Record<string, string[]>) => {
+  const split = async (picked: SplitPick) => {
     setWorking(true);
     try {
       const ids: string[] = [];
       for (const o of unpaid) {
-        const chosen = picked[o.id] ?? [];
-        if (chosen.length === 0) continue;
+        const chosen = picked[o.id] ?? {};
         const live = o.items.filter((i) => i.status !== 'void');
-        if (chosen.length === live.length) ids.push(o.id);
-        else ids.push((await splitOrder(o.id, chosen)).id);
+        const lines = live.filter((i) => (chosen[i.id] ?? 0) > 0).map((i) => ({ itemId: i.id, qty: chosen[i.id] < i.qty ? chosen[i.id] : undefined }));
+        if (lines.length === 0) continue;
+        const whole = lines.length === live.length && lines.every((l) => l.qty === undefined);
+        if (whole) ids.push(o.id);
+        else ids.push((await splitOrder(o.id, lines)).id);
       }
       setSplitting(false);
       await startCheckout(ids);

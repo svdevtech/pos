@@ -99,8 +99,8 @@ interface Api {
   openTable: (tableId: string, guests?: number) => Promise<Order>;
   /** Moves everything on one table to another; an occupied target merges the two. */
   moveTable: (fromTableId: string, toTableId: string) => Promise<void>;
-  /** The chosen lines become a new order on the same table, returned for its own checkout. */
-  splitOrder: (orderId: string, itemIds: string[]) => Promise<Order>;
+  /** The chosen lines (or part of a line's quantity) become a new order on the same table, returned for its own checkout. */
+  splitOrder: (orderId: string, lines: { itemId: string; qty?: number }[]) => Promise<Order>;
   setItemStatus: (orderId: string, itemId: string, status: ItemStatus) => Promise<void>;
   /** Every item of a station's tickets in one go — the bump bar's "all done". */
   bumpOrder: (orderId: string, stationId: string, status: ItemStatus) => Promise<void>;
@@ -175,7 +175,9 @@ function toMenu(view: MenuView | undefined): Menu {
       categoryId: m.category_id ?? '',
       stationId: m.station_id ?? '',
       name: m.name,
-      price: dec(m.price),
+      price: dec(m.promo_price ?? m.price),
+      listPrice: m.promo_price != null ? dec(m.price) : undefined,
+      promoName: m.promo_price != null ? m.promo_name : undefined,
       emoji: emojiFor(catName[m.category_id ?? ''] ?? '', m.name),
       channels: m.channels,
       modifierGroupIds: m.modifier_group_ids ?? [],
@@ -250,7 +252,8 @@ export function FnbProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const t = useTranslations('fnb');
   const [live, setLive] = useState(false);
-  const menuQ = useQuery({ queryKey: fnbKeys.menu, queryFn: fnbApi.menu, staleTime: 5 * 60_000 });
+  // a minute: a promotion that starts or ends should show within the minute
+  const menuQ = useQuery({ queryKey: fnbKeys.menu, queryFn: fnbApi.menu, staleTime: 60_000, refetchInterval: 60_000 });
   const floorQ = useQuery({ queryKey: fnbKeys.floor, queryFn: () => fnbApi.floor(), staleTime: 5 * 60_000 });
   const ordersQ = useQuery({ queryKey: fnbKeys.orders(true), queryFn: () => fnbApi.orders(true), refetchInterval: live ? 15_000 : 3_000, staleTime: 1_000 });
   const settingsQ = useQuery({ queryKey: posKeys.settings, queryFn: posApi.settings, staleTime: 5 * 60_000 });
@@ -300,6 +303,10 @@ export function FnbProvider({ children }: { children: ReactNode }) {
           void qc.invalidateQueries({ queryKey: fnbKeys.floor });
           void qc.invalidateQueries({ queryKey: fnbKeys.floorAll });
           void qc.invalidateQueries({ queryKey: fnbKeys.tables });
+          return;
+        }
+        if (ev.kind === 'reservations') {
+          void qc.invalidateQueries({ queryKey: ['fnb', 'reservations'] });
           return;
         }
         if (ev.kind === 'table' || !order) {
@@ -390,8 +397,8 @@ export function FnbProvider({ children }: { children: ReactNode }) {
         await fnbApi.moveTable(from, to);
         await refresh();
       },
-      splitOrder: async (orderId, itemIds) => {
-        const o = await fnbApi.splitOrder(orderId, itemIds);
+      splitOrder: async (orderId, lines) => {
+        const o = await fnbApi.splitOrder(orderId, lines.map((l) => ({ item_id: l.itemId, qty: l.qty })));
         await refresh();
         return toOrder(o, menu, floor.tableByCode);
       },

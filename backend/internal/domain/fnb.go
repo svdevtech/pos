@@ -150,6 +150,117 @@ type MenuItem struct {
 	IsActive         bool            `json:"is_active"`
 	ModifierGroupIDs []uuid.UUID     `json:"modifier_group_ids"`
 	Recipe           *Recipe         `json:"recipe,omitempty"`
+	// PromoPrice and PromoName are what the item costs right now under a running promotion;
+	// computed when the menu is read, never stored.
+	PromoPrice *decimal.Decimal `json:"promo_price,omitempty"`
+	PromoName  string           `json:"promo_name,omitempty"`
+}
+
+// Promotion kinds: percent off, baht off, or a fixed price while it runs.
+const (
+	PromoPercent = "percent"
+	PromoAmount  = "amount"
+	PromoPrice   = "price"
+)
+
+// MenuPromo is a time-of-day price on a dish or a whole category: happy hour, a weekday lunch,
+// a launch price. Days are 0 = Sunday … 6 = Saturday; times are "HH:MM" local.
+type MenuPromo struct {
+	ID         uuid.UUID       `json:"id"`
+	StoreID    uuid.UUID       `json:"store_id"`
+	Name       string          `json:"name"`
+	Kind       string          `json:"kind"`
+	Value      decimal.Decimal `json:"value"`
+	CategoryID *uuid.UUID      `json:"category_id,omitempty"`
+	MenuItemID *uuid.UUID      `json:"menu_item_id,omitempty"`
+	Days       []int           `json:"days"`
+	StartTime  string          `json:"start_time"`
+	EndTime    string          `json:"end_time"`
+	StartsOn   *time.Time      `json:"starts_on,omitempty"`
+	EndsOn     *time.Time      `json:"ends_on,omitempty"`
+	IsActive   bool            `json:"is_active"`
+	Sort       int             `json:"sort"`
+}
+
+// AppliesTo says whether the promotion covers the dish.
+func (p MenuPromo) AppliesTo(item MenuItem) bool {
+	if p.MenuItemID != nil {
+		return *p.MenuItemID == item.ID
+	}
+	return p.CategoryID != nil && item.CategoryID != nil && *p.CategoryID == *item.CategoryID
+}
+
+// RunsAt says whether the promotion is on at that moment (local time).
+func (p MenuPromo) RunsAt(now time.Time) bool {
+	if !p.IsActive {
+		return false
+	}
+	now = now.In(bangkokTZ)
+	if p.StartsOn != nil && now.Before(time.Date(p.StartsOn.Year(), p.StartsOn.Month(), p.StartsOn.Day(), 0, 0, 0, 0, bangkokTZ)) {
+		return false
+	}
+	if p.EndsOn != nil && !now.Before(time.Date(p.EndsOn.Year(), p.EndsOn.Month(), p.EndsOn.Day(), 0, 0, 0, 0, bangkokTZ).AddDate(0, 0, 1)) {
+		return false
+	}
+	day := int(now.Weekday())
+	inDay := false
+	for _, d := range p.Days {
+		if d == day {
+			inDay = true
+			break
+		}
+	}
+	if !inDay {
+		return false
+	}
+	hhmm := now.Format("15:04")
+	return hhmm >= p.StartTime && hhmm <= p.EndTime
+}
+
+// PriceFor is the item's price under the promotion.
+func (p MenuPromo) PriceFor(list decimal.Decimal) decimal.Decimal {
+	var out decimal.Decimal
+	switch p.Kind {
+	case PromoPercent:
+		out = list.Sub(list.Mul(p.Value).Div(decimal.NewFromInt(100)))
+	case PromoAmount:
+		out = list.Sub(p.Value)
+	default:
+		out = p.Value
+	}
+	if out.IsNegative() {
+		out = decimal.Zero
+	}
+	return Money(out)
+}
+
+var bangkokTZ = func() *time.Location {
+	if l, err := time.LoadLocation("Asia/Bangkok"); err == nil {
+		return l
+	}
+	return time.FixedZone("ICT", 7*3600)
+}()
+
+// Reservation is a booking (kind reservation, at = the booked time) or a walk-in party on the
+// waitlist (kind waitlist, at = when they arrived).
+const (
+	ReservationBooked   = "reservation"
+	ReservationWaitlist = "waitlist"
+)
+
+type Reservation struct {
+	ID        uuid.UUID  `json:"id"`
+	StoreID   uuid.UUID  `json:"store_id"`
+	Kind      string     `json:"kind"`
+	Name      string     `json:"name"`
+	Phone     string     `json:"phone,omitempty"`
+	PartySize int        `json:"party_size"`
+	At        time.Time  `json:"at"`
+	TableCode string     `json:"table_code,omitempty"`
+	Note      string     `json:"note,omitempty"`
+	Status    string     `json:"status"` // booked | waiting | seated | cancelled | no_show
+	CreatedBy *uuid.UUID `json:"created_by,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 type ModifierGroup struct {
@@ -234,25 +345,29 @@ func (o Order) Subtotal() decimal.Decimal {
 }
 
 type OrderItem struct {
-	ID         uuid.UUID           `json:"id"`
-	StoreID    uuid.UUID           `json:"store_id"`
-	OrderID    uuid.UUID           `json:"order_id"`
-	MenuItemID *uuid.UUID          `json:"menu_item_id,omitempty"`
-	StationID  *uuid.UUID          `json:"station_id,omitempty"`
-	Name       string              `json:"name"`
-	Qty        decimal.Decimal     `json:"qty"`
-	UnitPrice  decimal.Decimal     `json:"unit_price"`
-	Cost       decimal.Decimal     `json:"cost"`
-	Seat       int                 `json:"seat,omitempty"`
-	Course     int                 `json:"course"`
-	Note       string              `json:"note,omitempty"`
-	Status     ItemStatus          `json:"status"`
-	Deducted   bool                `json:"deducted"`
-	Sort       int                 `json:"sort"`
-	SentAt     time.Time           `json:"sent_at"`
-	ReadyAt    *time.Time          `json:"ready_at,omitempty"`
-	ServedAt   *time.Time          `json:"served_at,omitempty"`
-	Modifiers  []OrderItemModifier `json:"modifiers"`
+	ID         uuid.UUID       `json:"id"`
+	StoreID    uuid.UUID       `json:"store_id"`
+	OrderID    uuid.UUID       `json:"order_id"`
+	MenuItemID *uuid.UUID      `json:"menu_item_id,omitempty"`
+	StationID  *uuid.UUID      `json:"station_id,omitempty"`
+	Name       string          `json:"name"`
+	Qty        decimal.Decimal `json:"qty"`
+	UnitPrice  decimal.Decimal `json:"unit_price"`
+	Cost       decimal.Decimal `json:"cost"`
+	// A running promotion priced the line: which one, and the list price it replaced.
+	PromoID   *uuid.UUID          `json:"promo_id,omitempty"`
+	PromoName string              `json:"promo_name,omitempty"`
+	ListPrice decimal.Decimal     `json:"list_price"`
+	Seat      int                 `json:"seat,omitempty"`
+	Course    int                 `json:"course"`
+	Note      string              `json:"note,omitempty"`
+	Status    ItemStatus          `json:"status"`
+	Deducted  bool                `json:"deducted"`
+	Sort      int                 `json:"sort"`
+	SentAt    time.Time           `json:"sent_at"`
+	ReadyAt   *time.Time          `json:"ready_at,omitempty"`
+	ServedAt  *time.Time          `json:"served_at,omitempty"`
+	Modifiers []OrderItemModifier `json:"modifiers"`
 }
 
 // LineTotal is (unit price + the options' deltas) × qty.
