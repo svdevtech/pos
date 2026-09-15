@@ -44,7 +44,8 @@ const step = async (id, name, fn) => {
     console.log(`PASS ${id} ${name}${detail ? ` — ${detail}` : ''}`);
     return detail;
   } catch (err) {
-    const msg = String(err?.message ?? err).split('\n')[0].slice(0, 300);
+    const raw = String(err?.message ?? err).split('\n').map((l) => l.trim()).filter(Boolean);
+    const msg = [raw[0], raw.find((l) => l.includes('waiting for'))].filter(Boolean).join(' · ').slice(0, 300);
     results.push({ id, name, status: 'FAIL', ms: Date.now() - started, detail: msg });
     console.log(`FAIL ${id} ${name} — ${msg}`);
     if (ctxPage) {
@@ -87,6 +88,36 @@ const login = async (page) => {
   await page.getByLabel(L('auth.password')).first().fill(PASS);
   await page.getByRole('button', { name: L('auth.signIn'), exact: true }).click();
   await page.waitForURL(/\/(dashboard|pos|fnb)/, { timeout: 45_000 });
+};
+
+/** Shuts the receipt window; Escape leaves the modal up and it then swallows the next click. */
+const closeReceipt = async (page) => {
+  const dlg = page.getByTestId('receipt-dialog');
+  for (let i = 0; i < 4 && (await dlg.count()); i += 1) {
+    for (const l of [page.getByTestId('receipt-close'), page.getByTestId('receipt-new-sale'), dlg.locator('button[aria-label="close"]')]) {
+      if (await l.count()) {
+        await l.first().click({ timeout: 5_000 }).catch(() => {});
+        break;
+      }
+    }
+    await page.waitForTimeout(600);
+  }
+  if (await dlg.count()) throw new Error('ปิดหน้าต่างใบเสร็จไม่ได้');
+  await page.waitForTimeout(300);
+};
+
+/** Opens the floor plan's side panel on one table; the panel toggles, so close it first. */
+const openTablePanel = async (page, tableId, code) => {
+  const panel = page.getByTestId('table-panel');
+  if (await panel.count()) {
+    // already open on this table: leave it, a second tap would close it
+    if (code && (await panel.innerText()).includes(code)) return;
+    // a CSS selector, not a role: a dialog that has just closed can still leave the page aria-hidden
+    await panel.locator('button[aria-label="close"]').first().click({ timeout: 10_000 }).catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  await page.locator(`[data-testid="table-${tableId}"]`).click({ force: true });
+  await panel.waitFor({ timeout: 20_000 });
 };
 
 /** The F&B screens hold an SSE stream open, so networkidle never fires on them. */
@@ -272,6 +303,22 @@ const main = async () => {
   });
 
   await step('B7', 'ตั้งค่า → โต๊ะ/โซน: สร้างโซนและโต๊ะ 2 ตัว', async () => {
+    // a code an earlier run left behind (switched off, but still in the room) must not be reused
+    const taken = new Set(((await api(page, '/fnb/floor?all=1')).body?.tables ?? []).map((t) => t.code));
+    const A = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const pick = (prefix) => {
+      for (let i = 0; i < A.length; i += 1)
+        for (let j = 0; j < A.length; j += 1) {
+          const c = `${prefix}${A[(i + Number(TAG.slice(-2))) % A.length]}${A[(j + Number(TAG.slice(-4, -2))) % A.length]}`;
+          if (!taken.has(c)) {
+            taken.add(c);
+            return c;
+          }
+        }
+      throw new Error('ไม่มีรหัสโต๊ะว่าง');
+    };
+    name.tableA = pick('E9');
+    name.tableB = pick('E8');
     await page.getByTestId('cfg-tab-floor').click();
     await page.waitForTimeout(1200);
     await page.getByTestId('cfg-add-zone').click();
@@ -365,7 +412,7 @@ const main = async () => {
     saleDoc = sale.doc_no;
     assert(near(sale.net, 71.5), `ยอดบิล = ${sale.net}`);
     assert(sale.order_id, 'บิลไม่ได้ผูกกับออร์เดอร์ (order_id ว่าง)');
-    await page.keyboard.press('Escape');
+    await closeReceipt(page);
     return `${sale.doc_no} ฿${Number(sale.net).toFixed(2)} ทอน ฿${change.toFixed(2)}`;
   });
 
@@ -429,8 +476,7 @@ const main = async () => {
   });
 
   await step('E2', 'เปิดโต๊ะ (ยังไม่สั่ง) → โต๊ะเปลี่ยนเป็น "นั่งแล้ว"', async () => {
-    await page.locator(`[data-testid="table-${made.tables[0]}"]`).click({ force: true });
-    await page.getByTestId('table-panel').waitFor({ timeout: 15_000 });
+    await openTablePanel(page, made.tables[0], name.tableA);
     await page.getByTestId('table-seat').click();
     await page.waitForTimeout(2500);
     const status = await page.locator(`[data-testid="table-${made.tables[0]}"]`).getAttribute('data-status');
@@ -467,8 +513,7 @@ const main = async () => {
   await step('E4', 'ย้ายโต๊ะ: ออร์เดอร์ย้ายไปโต๊ะปลายทาง และโต๊ะเดิมว่าง', async () => {
     const tokensBefore = await api(page, '/fnb/tables');
     const tokenA = tokensBefore.body.find((t) => t.table_code === name.tableA)?.token;
-    await page.locator(`[data-testid="table-${made.tables[0]}"]`).click({ force: true });
-    await page.getByTestId('table-panel').waitFor();
+    await openTablePanel(page, made.tables[0], name.tableA);
     await page.getByTestId('table-move').click();
     await page.getByTestId('move-dialog').waitFor({ timeout: 15_000 });
     await page.getByTestId(`move-to-${name.tableB}`).click();
@@ -484,10 +529,7 @@ const main = async () => {
   });
 
   await step('E5', 'แยกบิล: แยก 1 แก้วจาก 2 แล้วชำระเฉพาะส่วนที่แยก', async () => {
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
-    await page.locator(`[data-testid="table-${made.tables[1]}"]`).click({ force: true });
-    await page.getByTestId('table-panel').waitFor();
+    await openTablePanel(page, made.tables[1], name.tableB);
     const splitBtn = page.getByTestId('table-split');
     assert(await splitBtn.count(), 'ไม่มีปุ่มแยกบิล (ต้องมีอย่างน้อย 2 รายการ)');
     await splitBtn.click();
@@ -514,7 +556,7 @@ const main = async () => {
     const sales = await api(page, '/sales?page=1&page_size=3');
     const sale = (sales.body.items ?? sales.body)[0];
     made.sales.push(sale.id);
-    await page.keyboard.press('Escape');
+    await closeReceipt(page);
     return `แยก ${took} · ยอด ฿${net.toFixed(2)} · บิล ${sale.doc_no}`;
   });
 
@@ -523,8 +565,7 @@ const main = async () => {
     await page.waitForSelector('[data-testid="view-toggle"]', { timeout: 30_000 });
     await page.getByRole('button', { name: L('fnb.view2d'), exact: true }).click();
     await page.waitForTimeout(1500);
-    await page.locator(`[data-testid="table-${made.tables[1]}"]`).click({ force: true });
-    await page.getByTestId('table-panel').waitFor();
+    await openTablePanel(page, made.tables[1], name.tableB);
     if (await page.getByTestId('table-checkout').count()) {
       await page.getByTestId('table-checkout').click();
       await page.getByTestId('tender-net').waitFor({ timeout: 30_000 });
@@ -535,10 +576,9 @@ const main = async () => {
       await page.waitForTimeout(1000);
       const sales = await api(page, '/sales?page=1&page_size=3');
       made.sales.push((sales.body.items ?? sales.body)[0].id);
-      await page.keyboard.press('Escape');
+      await closeReceipt(page);
       await page.waitForTimeout(800);
-      await page.locator(`[data-testid="table-${made.tables[1]}"]`).click({ force: true });
-      await page.getByTestId('table-panel').waitFor();
+      await openTablePanel(page, made.tables[1], name.tableB);
     }
     await page.getByTestId('table-close').click();
     await page.waitForTimeout(3000);

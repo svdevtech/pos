@@ -374,8 +374,11 @@ export function FnbProvider({ children }: { children: ReactNode }) {
     const tableStatus = (tableId: string): TableStatus => {
       const open = ordersForTable(tableId);
       if (open.length === 0) return 'free';
-      if (open.every((o) => o.status === 'paid')) return 'bill';
-      const items = open.flatMap((o) => o.items).filter((i) => i.status !== 'void');
+      // the empty order that only seats the party does not count: it would otherwise keep a table
+      // that has paid in full off "waiting for the bill", and the waiter could never close it
+      const live = open.filter((o) => o.items.some((i) => i.status !== 'void'));
+      if (live.length > 0 && live.every((o) => o.status === 'paid')) return 'bill';
+      const items = live.flatMap((o) => o.items).filter((i) => i.status !== 'void');
       if (items.some((i) => i.status === 'ready')) return 'ready';
       if (items.some((i) => i.status === 'sent' || i.status === 'preparing')) return 'waiting';
       return 'seated';

@@ -395,7 +395,9 @@ export default function ReceiptDialog({ open, saleId, onClose, onNewSale, autoPr
               {t('newSale')} (Enter)
             </GlassButton>
           ) : (
-            <GlassButton onClick={onClose}>{t('close')}</GlassButton>
+            <GlassButton onClick={onClose} data-testid="receipt-close">
+              {t('close')}
+            </GlassButton>
           )}
         </>
       }

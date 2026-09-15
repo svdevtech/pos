@@ -91,7 +91,7 @@ export default function FloorPage() {
   const orders = selected ? ordersForTable(selected) : [];
   const total = orders.reduce((s, o) => s + orderTotal(o), 0);
   const unpaid = orders.filter((o) => o.status === 'open' && o.items.some((i) => i.status !== 'void'));
-  const liveItems = unpaid.reduce((n, o) => n + o.items.filter((i) => i.status !== 'void').length, 0);
+  const liveItems = unpaid.reduce((n, o) => n + o.items.filter((i) => i.status !== 'void').reduce((q, i) => q + dec(i.qty), 0), 0);
   const startCheckout = async (ids = unpaid.map((o) => o.id)) => {
     try {
       const q = await quote(ids);
