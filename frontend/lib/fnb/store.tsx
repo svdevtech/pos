@@ -4,18 +4,20 @@
  * Order and menu state for the F&B screens, backed by the API.
  *
  * The three screens — counter, kitchen, floor — share one context: the menu (read once, kept
- * fresh every few minutes) and today's open orders (polled every 3 s, which is what keeps a
- * drink rung up at the counter appearing on the bar's screen and turning its table orange on
- * the floor). Polling is the stand-in until the SSE stream in the plan; every write goes through
- * the API and refreshes the list right away, so the tab that acted never waits for the poll.
+ * fresh every few minutes) and today's open orders. Changes arrive over the /fnb/stream
+ * server-sent events, which is what makes a drink rung up at the counter appear on the bar's
+ * screen at once and turn its table orange on the floor; a 15 s poll behind it covers a dropped
+ * connection, and drops to 3 s while the stream is down. Every write goes through the API and
+ * refreshes the list right away, so the tab that acted never waits for either.
  *
  * Tables and zones are still the prototype's fixture (lib/fnb/mock.ts) until the floor plan
  * lands in phase 1; an order remembers its table by the table's code.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
-import { fnbApi, fnbKeys, type Channel, type ItemStatus, type MenuView, type Order as ApiOrder, type OrderItem as ApiItem } from '@/lib/fnb/api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { getAccessToken } from '@/lib/auth/session';
+import { fnbApi, fnbKeys, subscribeOrders, type Channel, type ItemStatus, type MenuView, type Order as ApiOrder, type OrderItem as ApiItem } from '@/lib/fnb/api';
 import { tables, type Category, type MenuItem, type ModifierGroup, type Modifier, type Station, type Table } from '@/lib/fnb/mock';
 import { dec } from '@/lib/pos/types';
 
@@ -76,6 +78,8 @@ interface Menu {
 interface Api {
   menu: Menu;
   menuLoading: boolean;
+  /** True while the event stream is connected (the screens can show a live dot). */
+  live: boolean;
   orders: Order[];
   nextQueue: number;
   placeOrder: (lines: CartLine[], channel: Channel, opts?: { tableId?: string; guests?: number }) => Promise<Order>;
@@ -206,8 +210,30 @@ function toOrder(o: ApiOrder, menu: Menu): Order {
 
 export function FnbProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
+  const [live, setLive] = useState(false);
   const menuQ = useQuery({ queryKey: fnbKeys.menu, queryFn: fnbApi.menu, staleTime: 5 * 60_000 });
-  const ordersQ = useQuery({ queryKey: fnbKeys.orders(true), queryFn: () => fnbApi.orders(true), refetchInterval: 3_000, staleTime: 1_000 });
+  const ordersQ = useQuery({ queryKey: fnbKeys.orders(true), queryFn: () => fnbApi.orders(true), refetchInterval: live ? 15_000 : 3_000, staleTime: 1_000 });
+
+  // the stream: an event carries the whole order, so it is merged straight into the list
+  useEffect(() => {
+    const token = getAccessToken() ?? '';
+    return subscribeOrders(
+      token,
+      (ev) => {
+        qc.setQueryData<ApiOrder[]>(fnbKeys.orders(true), (cur) => {
+          const list = cur ?? [];
+          const i = list.findIndex((o) => o.id === ev.order.id);
+          const keep = ev.order.status === 'open' || ev.order.status === 'paid';
+          if (i === -1) return keep ? [...list, ev.order] : list;
+          const next = [...list];
+          if (keep) next[i] = ev.order;
+          else next.splice(i, 1);
+          return next;
+        });
+      },
+      setLive,
+    );
+  }, [qc]);
 
   const menu = useMemo(() => toMenu(menuQ.data), [menuQ.data]);
   const orders = useMemo(() => (ordersQ.data ?? []).map((o) => toOrder(o, menu)), [ordersQ.data, menu]);
@@ -252,6 +278,7 @@ export function FnbProvider({ children }: { children: ReactNode }) {
     return {
       menu,
       menuLoading: menuQ.isPending,
+      live,
       orders,
       nextQueue: todayMax + 1,
       placeOrder: async (lines, channel, opts = {}) => toOrder(await create.mutateAsync({ lines, channel, ...opts }), menu),
@@ -276,7 +303,7 @@ export function FnbProvider({ children }: { children: ReactNode }) {
       lineTotal,
       orderTotal,
     };
-  }, [menu, menuQ.isPending, orders, create, itemStatus, orderStatus, refresh]);
+  }, [menu, menuQ.isPending, live, orders, create, itemStatus, orderStatus, refresh]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

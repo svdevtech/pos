@@ -2,7 +2,9 @@ package httptransport
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +27,104 @@ type FnbService interface {
 	List(ctx context.Context, storeID uuid.UUID, openOnly bool, since time.Time, limit int) ([]domain.Order, error)
 	SetItemStatus(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, orderID, itemID uuid.UUID, status domain.ItemStatus, made bool) (*domain.Order, error)
 	SetStatus(ctx context.Context, storeID uuid.UUID, actor fnbuc.Actor, id uuid.UUID, status domain.OrderStatus) (*domain.Order, error)
+	Subscribe(ctx context.Context, storeID uuid.UUID) <-chan fnbuc.Event
+	TableTokens(ctx context.Context, storeID uuid.UUID, ensure []string) ([]fnbuc.TableToken, error)
+	RotateTableToken(ctx context.Context, storeID uuid.UUID, tableCode string) (*fnbuc.TableToken, error)
+	TableByToken(ctx context.Context, token string) (*fnbuc.TableView, error)
+	TableOrders(ctx context.Context, token string) ([]domain.Order, error)
+	TableCreateOrder(ctx context.Context, token string, lines []fnbuc.LineInput, note string) (*domain.Order, error)
+	SubscribeTable(ctx context.Context, token string) (<-chan fnbuc.Event, error)
+}
+
+// streamEvents writes order events as server-sent events until the client goes away. A comment
+// line every 25 s keeps proxies from closing an idle connection.
+func streamEvents(w http.ResponseWriter, r *http.Request, events <-chan fnbuc.Event) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		fail(w, r, domain.ErrValidation.With("reason", "streaming unsupported"))
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("retry: 3000\n\n"))
+	fl.Flush()
+	tick := time.NewTicker(25 * time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-tick.C:
+			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
+				return
+			}
+			fl.Flush()
+		case ev, open := <-events:
+			if !open {
+				return
+			}
+			body, err := json.Marshal(ev)
+			if err != nil {
+				continue
+			}
+			if _, err := w.Write([]byte("event: order\ndata: " + string(body) + "\n\n")); err != nil {
+				return
+			}
+			fl.Flush()
+		}
+	}
+}
+
+// mountPublicFnb is what a customer's phone reaches after scanning a table's QR: no sign-in,
+// the token in the URL is the whole authority, and the auth rate limiter keeps guessing slow.
+func (s *Server) mountPublicFnb(r chi.Router) {
+	r.Route("/public/fnb/t/{token}", func(r chi.Router) {
+		r.Use(s.authRL.middleware)
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			out, err := s.Fnb.TableByToken(r.Context(), chi.URLParam(r, "token"))
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.Get("/orders", func(w http.ResponseWriter, r *http.Request) {
+			out, err := s.Fnb.TableOrders(r.Context(), chi.URLParam(r, "token"))
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.Post("/orders", func(w http.ResponseWriter, r *http.Request) {
+			var in struct {
+				Lines []fnbuc.LineInput `json:"lines"`
+				Note  string            `json:"note"`
+			}
+			if err := decode(r, &in); err != nil {
+				fail(w, r, err)
+				return
+			}
+			out, err := s.Fnb.TableCreateOrder(r.Context(), chi.URLParam(r, "token"), in.Lines, in.Note)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			created(w, out)
+		})
+		r.Get("/stream", func(w http.ResponseWriter, r *http.Request) {
+			events, err := s.Fnb.SubscribeTable(r.Context(), chi.URLParam(r, "token"))
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			streamEvents(w, r, events)
+		})
+	})
 }
 
 func fnbActor(r *http.Request) fnbuc.Actor {
@@ -89,6 +189,33 @@ func (s *Server) mountFnb(r chi.Router) {
 				return
 			}
 			out, err := s.Fnb.SaveModifierGroup(r.Context(), storeID(r), in)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+
+		// ---- live updates for the kitchen, the floor and the counter
+		r.With(requireRole(rolesAll...)).Get("/stream", func(w http.ResponseWriter, r *http.Request) {
+			streamEvents(w, r, s.Fnb.Subscribe(r.Context(), storeID(r)))
+		})
+
+		// ---- tables: the QR each one shows
+		r.With(requireRole(rolesSell...)).Get("/tables", func(w http.ResponseWriter, r *http.Request) {
+			var ensure []string
+			if v := queryStr(r, "ensure"); v != "" {
+				ensure = strings.Split(v, ",")
+			}
+			out, err := s.Fnb.TableTokens(r.Context(), storeID(r), ensure)
+			if err != nil {
+				fail(w, r, err)
+				return
+			}
+			ok(w, out)
+		})
+		r.With(requireRole(rolesManage...)).Post("/tables/{code}/rotate", func(w http.ResponseWriter, r *http.Request) {
+			out, err := s.Fnb.RotateTableToken(r.Context(), storeID(r), chi.URLParam(r, "code"))
 			if err != nil {
 				fail(w, r, err)
 				return

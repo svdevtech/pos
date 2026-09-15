@@ -1673,6 +1673,26 @@
     "callNumber": "Call number",
     "nowServing": "Preparing",
     "pickUp": "Ready to collect",
-    "prototypeNote": "Prototype — data lives in this browser. Open the kitchen display in a second tab to watch orders cross screens."
+    "prototypeNote": "Prototype — data lives in this browser. Open the kitchen display in a second tab to watch orders cross screens.",
+    "tablesQr": "Table QR",
+    "tablesQrHint": "Print it or open it on the table's tablet; customers scan and order themselves, no app needed",
+    "openKiosk": "Open the table screen",
+    "rotateToken": "Issue a new code",
+    "rotateHint": "The old code on any printed card stops working",
+    "copyLink": "Copy link",
+    "linkCopied": "Copied",
+    "live": "live",
+    "offline": "offline — reconnecting",
+    "scanToOrder": "Scan to order",
+    "orderHere": "or order from this screen",
+    "yourTable": "Your table",
+    "yourOrders": "What you have ordered",
+    "placeOrder": "Send order",
+    "orderSent": "Order sent — the kitchen is on it",
+    "callStaff": "Call staff",
+    "tableNotFound": "This QR is no longer valid, please call a member of staff",
+    "welcome": "Welcome",
+    "backToQr": "Back to the QR",
+    "itemsInCart": "{n} items"
   }
 }

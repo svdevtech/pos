@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"time"
 
@@ -393,6 +395,69 @@ func (FnbRepo) IngredientCosts(ctx context.Context, storeID uuid.UUID, ids []uui
 }
 
 // ---------------------------------------------------------------------------
+// Table tokens
+// ---------------------------------------------------------------------------
+
+type TableTokenRow struct {
+	TableCode string
+	Token     string
+	IsActive  bool
+}
+
+// EnsureTableToken returns the table's token, making one if it has none; rotate replaces it.
+func (FnbRepo) EnsureTableToken(ctx context.Context, storeID uuid.UUID, tableCode string, rotate bool) (*TableTokenRow, error) {
+	var r TableTokenRow
+	if rotate {
+		err := Q(ctx).QueryRow(ctx, `INSERT INTO table_tokens (store_id, table_code, token) VALUES ($1,$2,$3)
+			ON CONFLICT (store_id, table_code) DO UPDATE SET token=EXCLUDED.token, is_active=true, created_at=now()
+			RETURNING table_code, token, is_active`, storeID, tableCode, newToken()).Scan(&r.TableCode, &r.Token, &r.IsActive)
+		return &r, err
+	}
+	err := Q(ctx).QueryRow(ctx, `INSERT INTO table_tokens (store_id, table_code, token) VALUES ($1,$2,$3)
+		ON CONFLICT (store_id, table_code) DO UPDATE SET table_code=EXCLUDED.table_code
+		RETURNING table_code, token, is_active`, storeID, tableCode, newToken()).Scan(&r.TableCode, &r.Token, &r.IsActive)
+	return &r, err
+}
+
+func (FnbRepo) TableTokens(ctx context.Context, storeID uuid.UUID) ([]TableTokenRow, error) {
+	rows, err := Q(ctx).Query(ctx, `SELECT table_code, token, is_active FROM table_tokens WHERE store_id=$1 ORDER BY length(table_code), table_code`, storeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []TableTokenRow{}
+	for rows.Next() {
+		var r TableTokenRow
+		if err := rows.Scan(&r.TableCode, &r.Token, &r.IsActive); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// TableByToken resolves a public token. Must run with RLS bypassed: nobody is signed in yet.
+func (FnbRepo) TableByToken(ctx context.Context, token string) (uuid.UUID, string, error) {
+	var storeID uuid.UUID
+	var code string
+	err := Q(ctx).QueryRow(ctx, `SELECT store_id, table_code FROM table_tokens WHERE token=$1 AND is_active`, token).Scan(&storeID, &code)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, "", domain.ErrNotFound
+	}
+	return storeID, code, err
+}
+
+// newToken is 20 random bytes, URL-safe: long enough that a QR cannot be guessed, short enough
+// to scan on a phone at arm's length.
+func newToken() string {
+	b := make([]byte, 20)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
 
@@ -493,6 +558,39 @@ func (r FnbRepo) GetOrder(ctx context.Context, storeID, id uuid.UUID) (*domain.O
 		o.Items = []domain.OrderItem{}
 	}
 	return o, nil
+}
+
+// ListOrdersForTable is the table's live orders: open or paid, not yet closed.
+func (r FnbRepo) ListOrdersForTable(ctx context.Context, storeID uuid.UUID, tableCode string) ([]domain.Order, error) {
+	rows, err := Q(ctx).Query(ctx, `SELECT `+orderCols+` FROM orders o WHERE o.store_id=$1 AND o.table_code=$2 AND o.status IN ('open','paid') ORDER BY o.created_at`, storeID, tableCode)
+	if err != nil {
+		return nil, err
+	}
+	out := []domain.Order{}
+	ids := []uuid.UUID{}
+	for rows.Next() {
+		o, err := scanOrder(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, *o)
+		ids = append(ids, o.ID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	items, err := r.itemsFor(ctx, storeID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if its, ok := items[out[i].ID]; ok {
+			out[i].Items = its
+		}
+	}
+	return out, nil
 }
 
 // ListOrders returns orders newest-last, with their lines. openOnly leaves out closed and void ones.

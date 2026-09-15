@@ -158,10 +158,23 @@ export interface CreateOrderInput {
   lines: LineInput[];
 }
 
+export interface TableToken {
+  table_code: string;
+  token: string;
+  is_active: boolean;
+}
+
+/** One order event from /fnb/stream: the whole order rides along, nothing to fetch. */
+export interface OrderEvent {
+  kind: 'created' | 'updated';
+  order: Order;
+}
+
 export const fnbKeys = {
   menu: ['fnb', 'menu'] as const,
   orders: (open: boolean) => ['fnb', 'orders', open] as const,
   order: (id: string) => ['fnb', 'order', id] as const,
+  tables: ['fnb', 'tables'] as const,
 };
 
 export const fnbApi = {
@@ -177,4 +190,69 @@ export const fnbApi = {
   saveCategory: (c: Partial<MenuCategory>) => api.put<MenuCategory>('/fnb/menu/categories', c),
   saveItem: (m: Partial<MenuItem>) => api.put<MenuItem>('/fnb/menu/items', m),
   saveModifierGroup: (g: Partial<ModifierGroup>) => api.put<ModifierGroup>('/fnb/menu/modifier-groups', g),
+  /** Every table's QR token; `ensure` names tables that should get one if they have none yet. */
+  tables: (ensure: string[] = []) => api.get<TableToken[]>(`/fnb/tables${ensure.length ? `?ensure=${encodeURIComponent(ensure.join(','))}` : ''}`),
+  rotateTable: (code: string) => api.post<TableToken>(`/fnb/tables/${encodeURIComponent(code)}/rotate`, {}),
 };
+
+/**
+ * Listens to /fnb/stream. EventSource cannot carry the Authorization header, so this reads the
+ * stream through fetch and parses the frames itself. Reconnects with a short backoff; the caller
+ * learns whether it is connected so it can poll less while it is.
+ */
+export function subscribeOrders(
+  token: string,
+  onEvent: (ev: OrderEvent) => void,
+  onState?: (connected: boolean) => void,
+  url = '/api/v1/fnb/stream',
+): () => void {
+  let stopped = false;
+  let ctrl: AbortController | null = null;
+  const run = async () => {
+    let delay = 1000;
+    while (!stopped) {
+      ctrl = new AbortController();
+      try {
+        const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' } : { Accept: 'text/event-stream' }, signal: ctrl.signal });
+        if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
+        onState?.(true);
+        delay = 1000;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let idx: number;
+          while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const frame = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            const data = frame
+              .split('\n')
+              .filter((l) => l.startsWith('data:'))
+              .map((l) => l.slice(5).trim())
+              .join('\n');
+            if (!data) continue;
+            try {
+              onEvent(JSON.parse(data) as OrderEvent);
+            } catch {
+              /* a malformed frame is not worth dropping the connection over */
+            }
+          }
+        }
+      } catch {
+        /* fall through to reconnect */
+      }
+      onState?.(false);
+      if (stopped) break;
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 15_000);
+    }
+  };
+  void run();
+  return () => {
+    stopped = true;
+    ctrl?.abort();
+  };
+}

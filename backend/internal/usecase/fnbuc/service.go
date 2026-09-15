@@ -23,9 +23,12 @@ type Service struct {
 	stock  StockLedger
 	repo   postgres.FnbRepo
 	stores postgres.StoreRepo
+	hub    *hub
 }
 
-func New(db *postgres.DB, stock StockLedger) *Service { return &Service{db: db, stock: stock} }
+func New(db *postgres.DB, stock StockLedger) *Service {
+	return &Service{db: db, stock: stock, hub: newHub()}
+}
 
 type Actor struct {
 	UserID uuid.UUID
@@ -288,6 +291,9 @@ func (s *Service) CreateOrder(ctx context.Context, storeID uuid.UUID, actor Acto
 		out, err = s.repo.GetOrder(ctx, storeID, order.ID)
 		return err
 	})
+	if err == nil {
+		s.hub.Publish(storeID, Event{Kind: "created", Order: out})
+	}
 	return out, err
 }
 
@@ -418,6 +424,9 @@ func (s *Service) SetItemStatus(ctx context.Context, storeID uuid.UUID, actor Ac
 		out, err = s.repo.GetOrder(ctx, storeID, orderID)
 		return err
 	})
+	if err == nil {
+		s.hub.Publish(storeID, Event{Kind: "updated", Order: out})
+	}
 	return out, err
 }
 
@@ -520,5 +529,186 @@ func (s *Service) SetStatus(ctx context.Context, storeID uuid.UUID, actor Actor,
 		out, err = s.repo.GetOrder(ctx, storeID, id)
 		return err
 	})
+	if err == nil {
+		s.hub.Publish(storeID, Event{Kind: "updated", Order: out})
+	}
 	return out, err
+}
+
+// ---------------------------------------------------------------------------
+// Tables: the QR a customer scans, and the tablet that lives on the table
+// ---------------------------------------------------------------------------
+
+// TableToken is one table's public handle. The URL the QR carries is /t/<token>.
+type TableToken struct {
+	TableCode string `json:"table_code"`
+	Token     string `json:"token"`
+	IsActive  bool   `json:"is_active"`
+}
+
+// TableTokens lists every table's token, making one for any table code asked for that has none.
+func (s *Service) TableTokens(ctx context.Context, storeID uuid.UUID, ensure []string) ([]TableToken, error) {
+	var out []TableToken
+	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		for _, code := range ensure {
+			if _, err := s.repo.EnsureTableToken(ctx, storeID, strings.TrimSpace(code), false); err != nil {
+				return err
+			}
+		}
+		rows, err := s.repo.TableTokens(ctx, storeID)
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			out = append(out, TableToken{TableCode: r.TableCode, Token: r.Token, IsActive: r.IsActive})
+		}
+		return nil
+	})
+	if out == nil {
+		out = []TableToken{}
+	}
+	return out, err
+}
+
+// RotateTableToken replaces a table's token: a printed card with the old code stops working.
+func (s *Service) RotateTableToken(ctx context.Context, storeID uuid.UUID, tableCode string) (*TableToken, error) {
+	tableCode = strings.TrimSpace(tableCode)
+	if tableCode == "" {
+		return nil, domain.ErrValidation.With("field", "table_code")
+	}
+	var out *TableToken
+	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		r, err := s.repo.EnsureTableToken(ctx, storeID, tableCode, true)
+		if err != nil {
+			return err
+		}
+		out = &TableToken{TableCode: r.TableCode, Token: r.Token, IsActive: r.IsActive}
+		return nil
+	})
+	return out, err
+}
+
+// TableView is what the customer's phone sees after scanning: the shop, the table, the menu the
+// shop lets customers order from themselves, and what this table has already ordered.
+type TableView struct {
+	StoreID   uuid.UUID      `json:"store_id"`
+	StoreName string         `json:"store_name"`
+	TableCode string         `json:"table_code"`
+	Menu      *MenuView      `json:"menu"`
+	Orders    []domain.Order `json:"orders"`
+}
+
+// resolveToken finds the store and table behind a public token. Bypasses RLS for the lookup
+// only; everything after runs scoped to that store like any other request.
+func (s *Service) resolveToken(ctx context.Context, token string) (uuid.UUID, string, error) {
+	var storeID uuid.UUID
+	var code string
+	err := s.db.WithTx(ctx, postgres.Scope{Bypass: true}, func(ctx context.Context, _ pgx.Tx) error {
+		var err error
+		storeID, code, err = s.repo.TableByToken(ctx, token)
+		return err
+	})
+	return storeID, code, err
+}
+
+func (s *Service) TableByToken(ctx context.Context, token string) (*TableView, error) {
+	storeID, code, err := s.resolveToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	menu, err := s.Menu(ctx, storeID, true)
+	if err != nil {
+		return nil, err
+	}
+	// only what the shop lets customers order by themselves
+	items := menu.Items[:0]
+	for _, it := range menu.Items {
+		for _, ch := range it.Channels {
+			if ch == string(domain.ChannelSelfOrder) {
+				items = append(items, it)
+				break
+			}
+		}
+	}
+	menu.Items = items
+	out := &TableView{StoreID: storeID, TableCode: code, Menu: menu}
+	err = s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		st, err := s.stores.Get(ctx, storeID)
+		if err != nil {
+			return err
+		}
+		out.StoreName = st.Name
+		out.Orders, err = s.repo.ListOrdersForTable(ctx, storeID, code)
+		return err
+	})
+	if out.Orders == nil {
+		out.Orders = []domain.Order{}
+	}
+	return out, err
+}
+
+// TableOrders is the table's open orders, for the phone that keeps watching its food.
+func (s *Service) TableOrders(ctx context.Context, token string) ([]domain.Order, error) {
+	storeID, code, err := s.resolveToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	var out []domain.Order
+	err = s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		out, err = s.repo.ListOrdersForTable(ctx, storeID, code)
+		return err
+	})
+	if out == nil {
+		out = []domain.Order{}
+	}
+	return out, err
+}
+
+// TableCreateOrder is an order placed from the table itself. The channel and the table come
+// from the token, never from the request, and only self-order items are accepted.
+func (s *Service) TableCreateOrder(ctx context.Context, token string, lines []LineInput, note string) (*domain.Order, error) {
+	storeID, code, err := s.resolveToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	menu, err := s.Menu(ctx, storeID, true)
+	if err != nil {
+		return nil, err
+	}
+	allowed := map[uuid.UUID]bool{}
+	for _, it := range menu.Items {
+		for _, ch := range it.Channels {
+			if ch == string(domain.ChannelSelfOrder) {
+				allowed[it.ID] = true
+			}
+		}
+	}
+	for _, l := range lines {
+		if !allowed[l.MenuItemID] {
+			return nil, domain.ErrMenuItemNotFound
+		}
+	}
+	return s.CreateOrder(ctx, storeID, Actor{Name: "table " + code}, CreateOrderInput{Channel: domain.ChannelSelfOrder, TableCode: code, Note: note, Lines: lines})
+}
+
+// SubscribeTable is the table's own event feed: only its orders, for the phone on the table.
+func (s *Service) SubscribeTable(ctx context.Context, token string) (<-chan Event, error) {
+	storeID, code, err := s.resolveToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	src := s.hub.Subscribe(ctx, storeID)
+	out := make(chan Event, 16)
+	go func() {
+		defer close(out)
+		for ev := range src {
+			if ev.Order != nil && ev.Order.TableCode == code {
+				select {
+				case out <- ev:
+				default:
+				}
+			}
+		}
+	}()
+	return out, nil
 }

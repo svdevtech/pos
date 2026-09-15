@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -138,6 +139,11 @@ func TestSendingADishTakesItsRecipeOffStock(t *testing.T) {
 	require.NotNil(t, menu.Items[0].Recipe)
 	require.Len(t, menu.Items[0].Recipe.Lines, 2)
 
+	// the kitchen's screen is listening before the order is placed
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	events := f.svc.Subscribe(subCtx, f.store)
+
 	// two lattes, one of them with oat milk and an extra shot
 	order, err := f.svc.CreateOrder(ctx, f.store, actor, CreateOrderInput{Channel: domain.ChannelCounter, Lines: []LineInput{
 		{MenuItemID: f.latte, Qty: decimal.NewFromInt(1)},
@@ -148,6 +154,16 @@ func TestSendingADishTakesItsRecipeOffStock(t *testing.T) {
 	require.Len(t, order.Items, 2)
 	require.True(t, order.Items[0].Deducted)
 	require.True(t, order.Items[1].Deducted)
+
+	// and hears about it with the whole order attached, nothing to fetch
+	select {
+	case ev := <-events:
+		require.Equal(t, "created", ev.Kind)
+		require.Equal(t, order.ID, ev.Order.ID)
+		require.Len(t, ev.Order.Items, 2)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no event reached the subscriber")
+	}
 
 	// plain latte: 18 g × 1.05 = 18.9 g beans, 200 ml milk
 	// oat latte + shot: 18.9 + 18.9 g beans, 0 milk, 200 ml oat milk

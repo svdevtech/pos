@@ -81,6 +81,7 @@ func (s *Server) routes() chi.Router {
 	r.Route("/api/v1", func(r chi.Router) {
 		s.mountAuth(r)
 		s.mountDownloads(r) // signed links: the browser downloads them without an auth header
+		s.mountPublicFnb(r) // a table's QR: the token in the URL is the whole authority
 		r.Group(func(r chi.Router) {
 			r.Use(s.authenticate)
 			s.mountAdmin(r)

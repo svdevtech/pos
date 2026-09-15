@@ -9,6 +9,7 @@
  */
 
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant';
 import Box from '@mui/material/Box';
@@ -56,6 +57,7 @@ export default function FnbTabs() {
       <Tab href="/fnb/order" active={path.startsWith('/fnb/order')} testId="fnb-tab-order" icon={<LocalCafeIcon fontSize="small" />} label={t('order')} />
       <Tab href="/fnb/kitchen" active={path.startsWith('/fnb/kitchen')} testId="fnb-tab-kitchen" icon={<RestaurantIcon fontSize="small" />} label={t('kitchen')} />
       <Tab href="/fnb/floor" active={path.startsWith('/fnb/floor')} testId="fnb-tab-floor" icon={<TableRestaurantIcon fontSize="small" />} label={t('floor')} />
+      <Tab href="/fnb/tables" active={path.startsWith('/fnb/tables')} testId="fnb-tab-tables" icon={<QrCode2Icon fontSize="small" />} label={t('tablesQr')} />
     </Box>
   );
 }
