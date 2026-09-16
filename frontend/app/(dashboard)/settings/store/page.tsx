@@ -19,6 +19,7 @@ import RequireAuth from '@/components/RequireAuth';
 import { GlassButton, GlassCard, GlassInput } from '@/components/glass';
 import { locales, type Locale } from '@/i18n/config';
 import { api, isApiError } from '@/lib/api/client';
+import { BUSINESS_TYPES, useSaveStoreSettings, useStoreSettings, type BusinessType } from '@/lib/api/hooks/store';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import { forgetReceiptLogo } from '@/lib/pos/receiptLogo';
 import { MUTATING_ROLES, loadSession, updateSession, type SessionStore } from '@/lib/auth/session';
@@ -143,6 +144,47 @@ function LogoPanel() {
         <GlassButton variant="outlined" startIcon={<UploadIcon />} loading={upload.isPending} onClick={() => inputRef.current?.click()}>
           {t('uploadLogo')}
         </GlassButton>
+      </Stack>
+      <Snackbar open={Boolean(toast)} autoHideDuration={3000} onClose={() => setToast(null)} message={toast} />
+    </GlassCard>
+  );
+}
+
+/** What the shop sells, which decides the menu everyone in it is given. */
+function BusinessTypePanel() {
+  const t = useTranslations('settings');
+  const tc = useTranslations('common');
+  const errorMessage = useApiErrorMessage();
+  const settings = useStoreSettings();
+  const save = useSaveStoreSettings();
+  const [toast, setToast] = useState<string | null>(null);
+  const current = (settings.data?.business_type as BusinessType | undefined) ?? 'retail';
+
+  return (
+    <GlassCard title={t('businessType')} subtitle={t('businessTypeHint')}>
+      <Stack spacing={2}>
+        <GlassInput
+          select
+          label={t('businessType')}
+          value={current}
+          disabled={settings.isPending || save.isPending}
+          onChange={(e) =>
+            save.mutate(
+              { ...(settings.data ?? {}), business_type: e.target.value as BusinessType },
+              { onSuccess: () => setToast(tc('saved')), onError: (err) => setToast(errorMessage(err)) },
+            )
+          }
+          data-testid="business-type"
+        >
+          {BUSINESS_TYPES.map((b) => (
+            <MenuItem key={b} value={b}>
+              {t(`businessTypes.${b}`)}
+            </MenuItem>
+          ))}
+        </GlassInput>
+        <Typography variant="caption" color="text.secondary">
+          {t('businessTypeNote')}
+        </Typography>
       </Stack>
       <Snackbar open={Boolean(toast)} autoHideDuration={3000} onClose={() => setToast(null)} message={toast} />
     </GlassCard>
@@ -313,7 +355,10 @@ function StoreContent() {
           </GlassCard>
         </Grid>
         <Grid item xs={12} md={4}>
-          <LogoPanel />
+          <Stack spacing={3}>
+            <BusinessTypePanel />
+            <LogoPanel />
+          </Stack>
         </Grid>
       </Grid>
 

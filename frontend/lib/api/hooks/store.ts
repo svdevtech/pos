@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 
 /** Free-form per-store settings map (domain.StoreSettings). Only known keys are typed. */
+/** What the shop sells, which decides the menu it is given. */
+export type BusinessType = 'retail' | 'restaurant' | 'both';
+export const BUSINESS_TYPES: readonly BusinessType[] = ['retail', 'restaurant', 'both'];
+
 export interface StoreSettings {
+  /** retail = ร้านค้า, restaurant = ร้านอาหาร/กาแฟ, both = ทั้งสองอย่าง. Unset behaves as retail. */
+  business_type?: BusinessType | string;
   paper_width?: number | string;
   receipt_locale?: 'th' | 'en' | string;
   show_logo?: boolean;

@@ -1447,6 +1447,14 @@
     "value": "Cost moved"
   },
   "settings": {
+    "businessType": "Kind of shop",
+    "businessTypeHint": "What this shop sells; the menu shows only the screens it uses",
+    "businessTypeNote": "A restaurant or café is not shown the till, promotions, members, receivables or dividends. Choose \"Both\" for a grocery that also serves food.",
+    "businessTypes": {
+      "retail": "Shop / grocery",
+      "restaurant": "Restaurant / café",
+      "both": "Both"
+    },
     "title": "Settings",
     "store": "Store",
     "storeDesc": "Name, address, tax ID and logo",

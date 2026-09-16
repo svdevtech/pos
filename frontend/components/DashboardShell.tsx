@@ -47,6 +47,7 @@ import AppFooter from '@/components/AppFooter';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useStoreSettings, type BusinessType } from '@/lib/api/hooks/store';
 import type { Role } from '@/lib/auth/session';
 import { fnbApi, fnbKeys } from '@/lib/fnb/api';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -109,8 +110,12 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'help', href: '/help', icon: <MenuBookIcon /> },
 ];
 
-/** Slotted in after the till for a shop that has a menu; see usesFnb below. */
+/** Slotted in after the till for a shop that runs the restaurant module; see business type below. */
 const FNB_ITEM: NavItem = { key: 'fnb', href: '/fnb/order', icon: <RestaurantIcon />, roles: SELLERS };
+
+/** A shop that only serves food is not a grocery: these belong to the retail side and would only
+ *  be clutter on its menu. A shop set to "both" keeps everything. */
+const RETAIL_ONLY: readonly NavKey[] = ['pos', 'promotions', 'members', 'ar', 'dividends'];
 
 const ADMIN_ITEMS: NavItem[] = [
   { key: 'stores', href: '/admin/stores', icon: <StorefrontIcon />, roles: ['platform_admin'] },
@@ -153,13 +158,16 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   };
 
   const visible = (items: NavItem[]) => items.filter((i) => !i.roles || hasRole(...i.roles));
-  // the restaurant screens are their own workspace and only make sense once a shop has a menu,
-  // so the link appears for the shops that use them and stays out of the way of the others
+  // what the shop sells decides its menu: a restaurant is not shown the grocery screens, and a
+  // grocery is not shown the restaurant ones. A shop that has never been told falls back to what
+  // it has: a menu with dishes on it means it runs the restaurant module.
+  const settings = useStoreSettings();
   const fnbMenu = useQuery({ queryKey: fnbKeys.menu, queryFn: () => fnbApi.menu(), staleTime: 10 * 60_000, retry: false, enabled: Boolean(store) });
-  const usesFnb = (fnbMenu.data?.items.length ?? 0) > 0;
-  const items = usesFnb
-    ? NAV_ITEMS.flatMap((i) => (i.key === 'pos' ? [i, FNB_ITEM] : [i]))
-    : NAV_ITEMS;
+  const declared = settings.data?.business_type as BusinessType | undefined;
+  const kind: BusinessType = declared ?? ((fnbMenu.data?.items.length ?? 0) > 0 ? 'restaurant' : 'retail');
+  const items = (kind === 'retail' ? NAV_ITEMS : NAV_ITEMS.flatMap((i) => (i.key === 'pos' ? [i, FNB_ITEM] : [i]))).filter(
+    (i) => kind !== 'restaurant' || !RETAIL_ONLY.includes(i.key),
+  );
   const storeItems = isPlatformAdmin && !store ? [] : visible(items);
   const adminItems = visible(ADMIN_ITEMS);
 
