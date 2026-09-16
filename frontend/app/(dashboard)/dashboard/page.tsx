@@ -289,9 +289,12 @@ export default function DashboardPage() {
         <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<QrCode2Icon />} label={t('todayQr')} value={dashboard.isPending ? '…' : formatMoney(today_?.qr ?? 0, locale)} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
-        </Grid>
+        {/* selling on account belongs to the co-op's members, not to a restaurant */}
+        {!isRestaurant && (
+          <Grid item xs={12} sm={6} md={3}>
+            <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
+          </Grid>
+        )}
         {/* the state welfare rails the shop used to tally by hand every evening */}
         <Grid item xs={12} sm={6} md={3}>
           <Kpi icon={<AccountBalanceWalletIcon />} label={t('todayGwallet')} value={dashboard.isPending ? '…' : formatMoney(today_?.gwallet ?? 0, locale)} />
@@ -308,7 +311,7 @@ export default function DashboardPage() {
       </Grid>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={isRestaurant ? 12 : 6}>
           <Kpi
             icon={<WarningAmberIcon />}
             label={t('lowStock')}
@@ -317,15 +320,17 @@ export default function DashboardPage() {
             href="/inventory?low_stock=true"
           />
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Kpi
-            icon={<AccountBalanceWalletIcon />}
-            label={t('arOutstanding')}
-            value={dashboard.isPending ? '…' : d?.ar_outstanding_total === undefined ? '-' : formatMoney(d.ar_outstanding_total, locale)}
-            hint={t('viewAr')}
-            href="/ar"
-          />
-        </Grid>
+        {!isRestaurant && (
+          <Grid item xs={12} md={6}>
+            <Kpi
+              icon={<AccountBalanceWalletIcon />}
+              label={t('arOutstanding')}
+              value={dashboard.isPending ? '…' : d?.ar_outstanding_total === undefined ? '-' : formatMoney(d.ar_outstanding_total, locale)}
+              hint={t('viewAr')}
+              href="/ar"
+            />
+          </Grid>
+        )}
       </Grid>
 
       <Grid container spacing={2}>
