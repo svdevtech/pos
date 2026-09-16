@@ -72,6 +72,7 @@
     "signIn": "Sign in",
     "signingIn": "Signing in...",
     "forgot": "Forgot your password? Contact the store owner",
+    "readGuide": "Read the manual",
     "platformAdmin": "Sign in as platform admin",
     "mustReset": "Please set a new password before continuing",
     "currentPassword": "Current password",
@@ -1622,6 +1623,7 @@
     "thaiOnly": "The manual is currently available in Thai only.",
     "backToTop": "Back to top",
     "backToDashboard": "Back to dashboard",
+    "backToLogin": "Back to sign in",
     "docs": {
       "userGuide": "User guide",
       "dividendMath": "Dividend formulas",

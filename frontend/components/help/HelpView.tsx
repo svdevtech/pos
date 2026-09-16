@@ -285,7 +285,14 @@ const markdownComponents = {
   hr: () => <Divider sx={{ my: 3 }} />,
 };
 
-export default function HelpView({ docs }: { docs: HelpDoc[] }) {
+/** Where the "go back" chip at the foot of the manual points; the dashboard when left unsaid. */
+export interface HelpBack {
+  href: string;
+  /** i18n key under `help` */
+  labelKey: string;
+}
+
+export default function HelpView({ docs, back }: { docs: HelpDoc[]; back?: HelpBack }) {
   const t = useTranslations('help');
   const locale = useLocale();
   const theme = useTheme();
@@ -414,7 +421,7 @@ export default function HelpView({ docs }: { docs: HelpDoc[] }) {
           <Divider sx={{ my: 3 }} />
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" className="no-print">
             <Chip size="small" label={t('backToTop')} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
-            <Chip size="small" variant="outlined" component={Link} href="/dashboard" clickable label={t('backToDashboard')} />
+            <Chip size="small" variant="outlined" component={Link} href={back?.href ?? '/dashboard'} clickable label={t(back?.labelKey ?? 'backToDashboard')} />
           </Stack>
         </Paper>
       </Stack>

@@ -72,6 +72,7 @@
     "signIn": "เข้าสู่ระบบ",
     "signingIn": "กำลังเข้าสู่ระบบ...",
     "forgot": "ลืมรหัสผ่าน? ติดต่อผู้ดูแลร้าน",
+    "readGuide": "อ่านคู่มือการใช้งาน",
     "platformAdmin": "เข้าสู่ระบบในฐานะผู้ดูแลแพลตฟอร์ม",
     "mustReset": "กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน",
     "currentPassword": "รหัสผ่านปัจจุบัน",
@@ -1622,6 +1623,7 @@
     "thaiOnly": "The manual is currently available in Thai only.",
     "backToTop": "กลับขึ้นด้านบน",
     "backToDashboard": "กลับแดชบอร์ด",
+    "backToLogin": "กลับหน้าเข้าสู่ระบบ",
     "docs": {
       "userGuide": "คู่มือผู้ใช้งาน",
       "dividendMath": "สูตรคำนวณปันผล",

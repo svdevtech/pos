@@ -11,6 +11,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Kanit, Prompt } from 'next/font/google';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -333,6 +334,16 @@ function LoginForm() {
 
         <Typography variant="caption" sx={{ color: '#a9b6d6' }} textAlign="center">
           {t('forgot')}
+        </Typography>
+        {/* the manual is public, so a new shop can read it before it has an account */}
+        <Typography
+          component={Link}
+          href="/guide"
+          variant="caption"
+          textAlign="center"
+          sx={{ color: '#9fd0ff', textDecoration: 'none', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
+        >
+          {t('readGuide')}
         </Typography>
       </Stack>
     </GlassCard>
