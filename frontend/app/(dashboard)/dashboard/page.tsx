@@ -7,6 +7,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CreditScoreIcon from '@mui/icons-material/CreditScore';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -30,6 +31,7 @@ import { useSession } from '@/components/Providers';
 import { GlassButton, GlassCard, GlassTable, type GlassColumn } from '@/components/glass';
 import { resolveLocale } from '@/i18n/config';
 import { isApiError } from '@/lib/api/client';
+import { useStoreSettings } from '@/lib/api/hooks/store';
 import { useApiErrorMessage } from '@/lib/api/errors';
 import { formatMoney, formatQty, formatTime } from '@/lib/format';
 import { posApi, posKeys } from '@/lib/pos/api';
@@ -155,9 +157,12 @@ function HourlyChart({ points }: { points: HourPoint[] }) {
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const tn = useTranslations('nav');
   const locale = resolveLocale(useLocale());
   const { session } = useSession();
   const errorMessage = useApiErrorMessage();
+  const storeSettings = useStoreSettings();
+  const isRestaurant = storeSettings.data?.business_type === 'restaurant';
 
   const today = dayjs().format('YYYY-MM-DD');
 
@@ -246,8 +251,9 @@ export default function DashboardPage() {
           ) : (
             !dashboard.isPending && <Chip icon={<ScheduleIcon />} variant="outlined" label={t('noOpenShift')} />
           )}
-          <GlassButton component={Link} href="/pos" startIcon={<PointOfSaleIcon />}>
-            {tc('pos')}
+          {/* a restaurant's till is its counter screen, not the grocery one */}
+          <GlassButton component={Link} href={isRestaurant ? '/fnb/order' : '/pos'} startIcon={isRestaurant ? <RestaurantIcon /> : <PointOfSaleIcon />}>
+            {isRestaurant ? tn('fnb') : tc('pos')}
           </GlassButton>
         </Stack>
       </Stack>
