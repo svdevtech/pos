@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, qs } from '@/lib/api/client';
 import { downloadFile } from '@/lib/api/download';
+import type { ARReceipts } from '@/lib/pos/types';
 import type { Dec } from './common';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,8 @@ export interface PeriodSalesRow {
   cost: Dec;
   margin: Dec;
   margin_pct: Dec;
+  /** Receivable payments in the bucket, by tender; not part of any sales figure above. */
+  ar?: ARReceipts;
 }
 
 export interface DailySales extends ReportRange {

@@ -106,13 +106,18 @@ func TestEncodeCSV(t *testing.T) {
 func TestDailySalesCSV(t *testing.T) {
 	d := &DailySales{Range: Range{From: "2026-09-01", To: "2026-09-02"}}
 	d.Rows = []postgres.PeriodSalesRow{{Period: "2026-09-01", Bills: 2, Net: decimal.RequireFromString("100"), Cost: decimal.RequireFromString("60.5")}}
-	d.Total = postgres.PeriodSalesRow{Period: "total", Bills: 2, Net: decimal.RequireFromString("100"), Cost: decimal.RequireFromString("60.5"), Margin: decimal.RequireFromString("39.5"), MarginPct: decimal.RequireFromString("39.5")}
+	d.Total = postgres.PeriodSalesRow{Period: "total", Bills: 2, Net: decimal.RequireFromString("100"), Cost: decimal.RequireFromString("60.5"), Margin: decimal.RequireFromString("39.5"), MarginPct: decimal.RequireFromString("39.5"),
+		AR: postgres.ARReceipts{Cash: decimal.RequireFromString("20"), Transfer: decimal.RequireFromString("540"), Welfare: decimal.RequireFromString("5"), Total: decimal.RequireFromString("565")}}
 	h, rows := d.CSVTable()
-	if len(h) != 15 || len(rows) != 2 {
+	if len(h) != 21 || len(rows) != 2 {
 		t.Fatalf("header %d rows %d", len(h), len(rows))
 	}
 	if rows[1][0] != "total" || rows[1][4] != "100.00" || rows[1][12] != "60.50" || rows[1][14] != "39.50" {
 		t.Fatalf("unexpected total row %v", rows[1])
+	}
+	// repayments sit after the sales columns: total, cash, transfer, card, qr, other (welfare rails go with other)
+	if h[15] != "ar_received" || rows[1][15] != "565.00" || rows[1][16] != "20.00" || rows[1][17] != "540.00" || rows[1][20] != "5.00" {
+		t.Fatalf("unexpected repayment columns %v / %v", h[15:], rows[1][15:])
 	}
 }
 

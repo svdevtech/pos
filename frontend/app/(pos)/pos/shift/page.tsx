@@ -111,9 +111,11 @@ function ShiftSlipButton({ shiftId, variant = 'outlined' }: { shiftId: string; v
           net: t('net'),
           cancelled: t('cancelledBills'),
           byMethod: t('byMethod'),
+          repayments: t('repayments'),
+          repaymentsCashNote: t('repaymentsCashNote'),
           note: t('note'),
           printedAt: t('shiftSlipPrintedAt', { at: formatDateTime(new Date().toISOString(), locale, true) }),
-          methods: Object.fromEntries(['cash', 'credit', 'transfer', 'card', 'qr', 'other'].map((m) => [m, t(`methods.${m}`)])),
+          methods: Object.fromEntries(['cash', 'credit', 'transfer', 'card', 'qr', 'gwallet', 'thaiplus', 'welfare', 'other'].map((m) => [m, t(`methods.${m}`)])),
           interim: t('shiftSlipInterim'),
         },
         locale,
@@ -126,6 +128,33 @@ function ShiftSlipButton({ shiftId, variant = 'outlined' }: { shiftId: string; v
     <GlassButton variant={variant} startIcon={<PrintIcon />} loading={print.isPending} onClick={() => print.mutate()} data-testid="print-shift-slip">
       {t('printShiftSlip')}
     </GlassButton>
+  );
+}
+
+/** Tabs members paid off during the shift, by tender. The cash ones are already in "cash in". */
+function Repayments({ byMethod }: { byMethod?: Record<string, Money> | null }) {
+  const t = useTranslations('pos');
+  const locale = resolveLocale(useLocale());
+  const rows = sortMethods(byMethod).filter(([, v]) => dec(v) !== 0);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2 }} gutterBottom>
+        {t('repayments')}
+      </Typography>
+      <Grid container spacing={2} data-testid="shift-repayments">
+        {rows.map(([m, v]) => (
+          <Grid item xs={6} sm={4} key={m}>
+            <Stat label={t.has(`methods.${m}`) ? t(`methods.${m}`) : m} value={formatMoney(v, locale)} data-testid={`repaid-${m}`} />
+          </Grid>
+        ))}
+      </Grid>
+      {rows.some(([m]) => m === 'cash') && (
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+          {t('repaymentsCashNote')}
+        </Typography>
+      )}
+    </>
   );
 }
 
@@ -200,6 +229,7 @@ function ShiftSummary({ report }: { report: ShiftReport }) {
               </Grid>
             ))}
           </Grid>
+          <Repayments byMethod={sum.ar_by_method} />
         </>
       )}
       {sh.note && (
@@ -409,6 +439,7 @@ export default function ShiftPage() {
                       </Grid>
                     ))}
                   </Grid>
+                  <Repayments byMethod={currentSummary.ar_by_method} />
                 </>
               )}
               <Divider sx={{ my: 2 }} />

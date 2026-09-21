@@ -208,6 +208,8 @@ export interface SalesSummary {
   net: Money;
   cancelled: number;
   by_method?: Record<string, Money>;
+  /** Receivable payments taken in the same window (for a shift: by its cashier), by tender. */
+  ar_by_method?: Record<string, Money>;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +312,19 @@ export interface DashboardOpenShift {
   terminal?: string;
 }
 
+/** Receivable payments in a period, by tender (backend postgres.ARReceipts). */
+export interface ARReceipts {
+  cash?: Money;
+  transfer?: Money;
+  card?: Money;
+  qr?: Money;
+  gwallet?: Money;
+  thaiplus?: Money;
+  welfare?: Money;
+  other?: Money;
+  total?: Money;
+}
+
 export interface DashboardResponse {
   date?: string;
   today?: {
@@ -326,6 +341,9 @@ export interface DashboardResponse {
     credit?: Money;
     avg_bill?: Money;
     cancelled?: number;
+    /** Money paid in against members' tabs today, by tender. Not a sale: the bill was counted
+     *  on the day it was sold on credit. */
+    ar?: ARReceipts;
   };
   month_to_date_net?: Money;
   month_to_date_bills?: number;

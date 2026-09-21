@@ -58,9 +58,13 @@ func (s *Service) Pay(ctx context.Context, storeID uuid.UUID, actor Actor, in Pa
 	if !in.Method.Valid() || in.Method == domain.PayCredit {
 		return nil, domain.ErrValidation.With("field", "method")
 	}
-	paidAt := time.Now()
+	// The payment's time is the database's own clock unless the cashier back-dates it, so it can be
+	// compared with a shift's opening time (also the database's) without two clocks disagreeing.
+	// The document number only needs the month, which the app's clock gives just as well.
+	var paidAt time.Time
+	numberedAt := time.Now()
 	if in.PaidAt != nil {
-		paidAt = *in.PaidAt
+		paidAt, numberedAt = *in.PaidAt, *in.PaidAt
 	}
 	var out []domain.ARPayment
 	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
@@ -94,7 +98,7 @@ func (s *Service) Pay(ctx context.Context, storeID uuid.UUID, actor Actor, in Pa
 			return domain.ErrAROverpay.With("balance", totalDue.StringFixed(2))
 		}
 		remaining := in.Amount
-		docNo, err := postgres.NextDocNo(ctx, storeID, postgres.DocARPayment, paidAt)
+		docNo, err := postgres.NextDocNo(ctx, storeID, postgres.DocARPayment, numberedAt)
 		if err != nil {
 			return err
 		}

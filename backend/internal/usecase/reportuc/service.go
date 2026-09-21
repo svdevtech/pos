@@ -244,6 +244,7 @@ func (s *Service) DailySales(ctx context.Context, storeID uuid.UUID, rg Range) (
 		t.Gross, t.Discount, t.Net, t.Cost = t.Gross.Add(r.Gross), t.Discount.Add(r.Discount), t.Net.Add(r.Net), t.Cost.Add(r.Cost)
 		t.Cash, t.Credit, t.Transfer = t.Cash.Add(r.Cash), t.Credit.Add(r.Credit), t.Transfer.Add(r.Transfer)
 		t.Card, t.QR, t.Other = t.Card.Add(r.Card), t.QR.Add(r.QR), t.Other.Add(r.Other)
+		t.AR = t.AR.Plus(r.AR)
 	}
 	t.Margin = t.Net.Sub(t.Cost)
 	t.MarginPct = pct(t.Margin, t.Net)
@@ -251,11 +252,15 @@ func (s *Service) DailySales(ctx context.Context, storeID uuid.UUID, rg Range) (
 }
 
 func (d *DailySales) CSVTable() ([]string, [][]string) {
-	h := []string{"date", "bills", "gross", "discount", "net", "cancelled", "cash", "credit", "transfer", "card", "qr", "other", "cost", "margin", "margin_pct"}
+	h := []string{"date", "bills", "gross", "discount", "net", "cancelled", "cash", "credit", "transfer", "card", "qr", "other", "cost", "margin", "margin_pct",
+		"ar_received", "ar_cash", "ar_transfer", "ar_card", "ar_qr", "ar_other"}
 	rows := make([][]string, 0, len(d.Rows)+1)
 	line := func(r postgres.PeriodSalesRow) []string {
+		// the welfare rails are rare on a tab; they go with "other" to keep the sheet narrow
+		arOther := r.AR.Other.Add(r.AR.GWallet).Add(r.AR.ThaiPlus).Add(r.AR.Welfare)
 		return []string{r.Period, itoa(r.Bills), money(r.Gross), money(r.Discount), money(r.Net), itoa(r.Cancelled), money(r.Cash), money(r.Credit),
-			money(r.Transfer), money(r.Card), money(r.QR), money(r.Other), money(r.Cost), money(r.Margin), money(r.MarginPct)}
+			money(r.Transfer), money(r.Card), money(r.QR), money(r.Other), money(r.Cost), money(r.Margin), money(r.MarginPct),
+			money(r.AR.Total), money(r.AR.Cash), money(r.AR.Transfer), money(r.AR.Card), money(r.AR.QR), money(arOther)}
 	}
 	for _, r := range d.Rows {
 		rows = append(rows, line(r))
@@ -1023,6 +1028,10 @@ type DashboardToday struct {
 	Credit    decimal.Decimal `json:"credit"`
 	AvgBill   decimal.Decimal `json:"avg_bill"`
 	Cancelled int64           `json:"cancelled"`
+	// Money paid in against members' tabs today, by tender. Kept apart from the figures above,
+	// which are today's sales; the screen adds the two together where the drawer and the bank
+	// statement need them together.
+	AR postgres.ARReceipts `json:"ar"`
 }
 
 type OpenShift struct {
@@ -1061,6 +1070,7 @@ func (s *Service) Dashboard(ctx context.Context, storeID uuid.UUID) (*Dashboard,
 			out.Today.Net, out.Today.Cash, out.Today.Credit = out.Today.Net.Add(r.Net), out.Today.Cash.Add(r.Cash), out.Today.Credit.Add(r.Credit)
 			out.Today.Transfer, out.Today.QR, out.Today.Card = out.Today.Transfer.Add(r.Transfer), out.Today.QR.Add(r.QR), out.Today.Card.Add(r.Card)
 			out.Today.GWallet, out.Today.ThaiPlus, out.Today.Welfare = out.Today.GWallet.Add(r.GWallet), out.Today.ThaiPlus.Add(r.ThaiPlus), out.Today.Welfare.Add(r.Welfare)
+			out.Today.AR = out.Today.AR.Plus(r.AR)
 		}
 		out.Today.AvgBill = avg(out.Today.Net, out.Today.Bills)
 		mtd, err := s.rep.SalesTotals(ctx, storeID, monthStart, tomorrow)

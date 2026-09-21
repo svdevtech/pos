@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,6 +57,78 @@ type PeriodSalesRow struct {
 	Cost      decimal.Decimal `json:"cost"`
 	Margin    decimal.Decimal `json:"margin"`
 	MarginPct decimal.Decimal `json:"margin_pct"`
+	// Money collected against receivables in the bucket, by how it was paid. Not a sale — the bill
+	// was counted on the day it was sold on credit — so it is kept out of every figure above.
+	AR ARReceipts `json:"ar"`
+}
+
+// ARReceipts is money received against members' credit bills, split by tender. It belongs next to
+// the day's takings because it lands in the same drawer and the same bank account, but never in
+// the sales totals: that would count the bill a second time.
+type ARReceipts struct {
+	Cash     decimal.Decimal `json:"cash"`
+	Transfer decimal.Decimal `json:"transfer"`
+	Card     decimal.Decimal `json:"card"`
+	QR       decimal.Decimal `json:"qr"`
+	GWallet  decimal.Decimal `json:"gwallet"`
+	ThaiPlus decimal.Decimal `json:"thaiplus"`
+	Welfare  decimal.Decimal `json:"welfare"`
+	Other    decimal.Decimal `json:"other"`
+	Total    decimal.Decimal `json:"total"`
+}
+
+// add books an amount under its tender and keeps the total in step.
+func (a *ARReceipts) add(method string, amount decimal.Decimal) {
+	switch method {
+	case "cash":
+		a.Cash = a.Cash.Add(amount)
+	case "transfer":
+		a.Transfer = a.Transfer.Add(amount)
+	case "card":
+		a.Card = a.Card.Add(amount)
+	case "qr":
+		a.QR = a.QR.Add(amount)
+	case "gwallet":
+		a.GWallet = a.GWallet.Add(amount)
+	case "thaiplus":
+		a.ThaiPlus = a.ThaiPlus.Add(amount)
+	case "welfare":
+		a.Welfare = a.Welfare.Add(amount)
+	default:
+		a.Other = a.Other.Add(amount)
+	}
+	a.Total = a.Total.Add(amount)
+}
+
+// Plus is the sum of two buckets, for totals across a range.
+func (a ARReceipts) Plus(b ARReceipts) ARReceipts {
+	return ARReceipts{
+		Cash: a.Cash.Add(b.Cash), Transfer: a.Transfer.Add(b.Transfer), Card: a.Card.Add(b.Card), QR: a.QR.Add(b.QR),
+		GWallet: a.GWallet.Add(b.GWallet), ThaiPlus: a.ThaiPlus.Add(b.ThaiPlus), Welfare: a.Welfare.Add(b.Welfare),
+		Other: a.Other.Add(b.Other), Total: a.Total.Add(b.Total),
+	}
+}
+
+// ARReceiptsByPeriod buckets receivable payments the way PeriodSales buckets bills.
+func (ReportRepo) ARReceiptsByPeriod(ctx context.Context, storeID uuid.UUID, from, to time.Time, group string) (map[string]ARReceipts, error) {
+	expr, format := periodExpr("p.paid_at", group)
+	rows, err := Q(ctx).Query(ctx, `SELECT to_char(`+expr+`, '`+format+`'), p.method::text, sum(p.amount)::text
+		FROM ar_payments p WHERE p.store_id=$1 AND p.paid_at>=$2 AND p.paid_at<$3 GROUP BY 1, 2`, storeID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]ARReceipts{}
+	for rows.Next() {
+		var period, method, amount string
+		if err := rows.Scan(&period, &method, &amount); err != nil {
+			return nil, err
+		}
+		a := out[period]
+		a.add(method, dec(amount))
+		out[period] = a
+	}
+	return out, rows.Err()
 }
 
 // PeriodSales buckets sales by business day or month. Cost = Σ sale_lines.qty × cost_avg of sold bills.
@@ -99,7 +172,28 @@ func (ReportRepo) PeriodSales(ctx context.Context, storeID uuid.UUID, from, to t
 		r.Cost = dec(cost).Round(2)
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	ar, err := ReportRepo{}.ARReceiptsByPeriod(ctx, storeID, from, to, group)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if a, ok := ar[out[i].Period]; ok {
+			out[i].AR = a
+			delete(ar, out[i].Period)
+		}
+	}
+	// a day on which somebody only came in to pay off their tab still has money to reconcile
+	if len(ar) > 0 {
+		for period, a := range ar {
+			out = append(out, PeriodSalesRow{Period: period, AR: a})
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Period < out[j].Period })
+	}
+	return out, nil
 }
 
 // SalesTotals is the headline aggregate of sold bills in a range.

@@ -251,6 +251,9 @@ type DailySummary struct {
 	Net       decimal.Decimal            `json:"net"`
 	Cancelled int64                      `json:"cancelled"`
 	ByMethod  map[string]decimal.Decimal `json:"by_method"`
+	// Receivable payments taken in the same window, by tender. For a shift, only the ones its
+	// cashier took: that is whose drawer the cash ones were added to (see aruc.Pay).
+	ARByMethod map[string]decimal.Decimal `json:"ar_by_method"`
 }
 
 func (SaleRepo) Summary(ctx context.Context, storeID uuid.UUID, from, to time.Time, shiftID *uuid.UUID) (*DailySummary, error) {
@@ -282,7 +285,29 @@ func (SaleRepo) Summary(ctx context.Context, storeID uuid.UUID, from, to time.Ti
 		}
 		out.ByMethod[m] = dec(amt)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	out.ARByMethod = map[string]decimal.Decimal{}
+	arCond := ""
+	if shiftID != nil {
+		arCond = " AND p.received_by = (SELECT sh.cashier_id FROM shifts sh WHERE sh.id=$4)"
+	}
+	ar, err := Q(ctx).Query(ctx, `SELECT p.method::text, sum(p.amount)::text FROM ar_payments p
+		WHERE p.store_id=$1 AND p.paid_at>=$2 AND p.paid_at<$3`+arCond+` GROUP BY p.method`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer ar.Close()
+	for ar.Next() {
+		var m, amt string
+		if err := ar.Scan(&m, &amt); err != nil {
+			return nil, err
+		}
+		out.ARByMethod[m] = dec(amt)
+	}
+	return out, ar.Err()
 }
 
 // ---- returns -----------------------------------------------------------------

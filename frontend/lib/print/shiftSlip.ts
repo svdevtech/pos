@@ -34,6 +34,10 @@ export interface ShiftSlipLabels {
   net: string;
   cancelled: string;
   byMethod: string;
+  /** Heading for the tabs members paid off during the shift. */
+  repayments: string;
+  /** Says the cash ones are already inside "cash in" above, so nobody adds them twice. */
+  repaymentsCashNote: string;
   note: string;
   printedAt: string;
   /** Payment method names, keyed by method code. */
@@ -69,6 +73,9 @@ export function buildShiftSlipHtml(
     .filter(([, v]) => Number(v) !== 0)
     .map(([m, v]) => row(labels.methods[m] ?? m, fm(v)))
     .join('');
+  const repaid = Object.entries(summary?.ar_by_method ?? {}).filter(([, v]) => Number(v) !== 0);
+  const repayments = repaid.map(([m, v]) => row(labels.methods[m] ?? m, fm(v))).join('');
+  const repaidCash = repaid.some(([m]) => m === 'cash');
 
   return `<div class="rc">
   ${storeName ? `<div class="c sn">${esc(storeName)}</div>` : ''}
@@ -94,6 +101,7 @@ export function buildShiftSlipHtml(
   ${row(labels.net, fm(summary?.net), 'net')}
   ${Number(summary?.cancelled ?? 0) > 0 ? row(labels.cancelled, String(summary?.cancelled)) : ''}
   ${methods ? `<hr><div class="t">${esc(labels.byMethod)}</div>${methods}` : ''}
+  ${repayments ? `<hr><div class="t">${esc(labels.repayments)}</div>${repayments}${repaidCash ? `<div class="ft"><small>${esc(labels.repaymentsCashNote)}</small></div>` : ''}` : ''}
   ${shift.note ? `<hr><div class="ft">${esc(labels.note)}: ${esc(shift.note)}</div>` : ''}
   <hr>
   <div class="c ft"><small>${esc(labels.printedAt)}</small></div>

@@ -19,7 +19,7 @@ const session = {
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string } = {}) {
+async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string; transfer?: string; ar?: Record<string, string> } = {}) {
   await page.route('**/api/v1/**', (route) => json(route, { error: { code: 'NOT_FOUND', message: 'not found' } }, 404));
   await page.route('**/api/v1/store/settings', (route) => json(route, { require_shift: false, paper_width: 80 }));
   await page.route('**/api/v1/store', (route) => json(route, { id: STORE_ID, code: 'S1', name: 'ร้านทดสอบ' }));
@@ -47,7 +47,7 @@ async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string } 
         bills: 48,
         net: '1789.00',
         cash: '1542.00',
-        transfer: '247.00',
+        transfer: opts.transfer ?? '247.00',
         qr: '120.50',
         card: opts.card ?? '0.00',
         gwallet: '670.20',
@@ -56,6 +56,7 @@ async function mockApi(page: Page, opts: { dashboard?: boolean; card?: string } 
         credit: '80.00',
         avg_bill: '37.27',
         cancelled: 0,
+        ...(opts.ar ? { ar: opts.ar } : {}),
       },
       month_to_date_net: '25000.00',
       month_to_date_bills: 600,
@@ -104,4 +105,17 @@ test('a shop on an older server still gets its transfers from the summary fallba
   await expect(page.getByText('฿ 1,542.00').first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('฿ 247.00').first()).toBeVisible();
   await expect(page.getByText('฿ 1,002.80').first()).toBeVisible();
+});
+
+// บ้านแก่นใต้, 21 Sep: four bills paid by transfer (฿572) and four tabs paid off by transfer (฿540).
+// The bank got ฿1,112; the tile used to say ฿572.
+test('a tab paid off by transfer is counted in the transfers of the day, and says so', async ({ page }) => {
+  await mockApi(page, { transfer: '572.00', ar: { cash: '0', transfer: '540.00', qr: '0', total: '540.00' } });
+  await page.goto('/dashboard');
+  await expect(page.getByText('฿ 1,112.00').first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('รวมรับชำระหนี้ ฿ 540.00').first()).toBeVisible();
+  // the credit tile says how much came back in today
+  await expect(page.getByText('รับชำระหนี้วันนี้ ฿ 540.00').first()).toBeVisible();
+  // and the day's sales are still the day's sales
+  await expect(page.getByText('฿ 1,789.00').first()).toBeVisible();
 });

@@ -208,6 +208,13 @@ export default function DashboardPage() {
 
   const d = dashboard.data?.data;
   const today_ = d?.today;
+  // A tile is the money that came in by that tender today: the day's sales plus what members paid
+  // off their tabs. The repayment part is spelled out underneath, so the tiles can be checked
+  // against the drawer and the bank statement while the sales figure above stays sales only.
+  const ar = today_?.ar;
+  const takings = (sales: unknown, repaid: unknown) => dec(sales as string) + dec(repaid as string);
+  const repaidHint = (repaid: unknown) => (dec(repaid as string) > 0 ? t('includesRepayments', { amount: formatMoney(repaid as string, locale) }) : undefined);
+  const tender = (sales: unknown, repaid: unknown) => (dashboard.isPending ? '…' : formatMoney(takings(sales, repaid), locale));
   // `/reports/dashboard` embeds a compact {id, opened_at, cashier, terminal}; the fallback path has a full Shift.
   const openShift: DashboardOpenShift | null = d?.open_shift
     ? d.open_shift
@@ -281,32 +288,37 @@ export default function DashboardPage() {
           <Kpi icon={<CancelIcon />} label={t('cancelledBills')} value={v(today_?.cancelled ?? 0)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<PaymentsIcon />} label={t('todayCash')} value={dashboard.isPending ? '…' : formatMoney(today_?.cash ?? 0, locale)} />
+          <Kpi icon={<PaymentsIcon />} label={t('todayCash')} value={tender(today_?.cash, ar?.cash)} hint={repaidHint(ar?.cash)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<AccountBalanceIcon />} label={t('todayTransfer')} value={dashboard.isPending ? '…' : formatMoney(today_?.transfer ?? 0, locale)} />
+          <Kpi icon={<AccountBalanceIcon />} label={t('todayTransfer')} value={tender(today_?.transfer, ar?.transfer)} hint={repaidHint(ar?.transfer)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<QrCode2Icon />} label={t('todayQr')} value={dashboard.isPending ? '…' : formatMoney(today_?.qr ?? 0, locale)} />
+          <Kpi icon={<QrCode2Icon />} label={t('todayQr')} value={tender(today_?.qr, ar?.qr)} hint={repaidHint(ar?.qr)} />
         </Grid>
         {/* selling on account belongs to the co-op's members, not to a restaurant */}
         {!isRestaurant && (
           <Grid item xs={12} sm={6} md={3}>
-            <Kpi icon={<CreditScoreIcon />} label={t('todayCredit')} value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)} />
+            <Kpi
+              icon={<CreditScoreIcon />}
+              label={t('todayCredit')}
+              value={dashboard.isPending ? '…' : formatMoney(today_?.credit ?? 0, locale)}
+              hint={dec((ar?.total ?? 0) as string) > 0 ? t('repaidToday', { amount: formatMoney(ar?.total ?? 0, locale) }) : undefined}
+            />
           </Grid>
         )}
         {/* the state welfare rails the shop used to tally by hand every evening */}
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<AccountBalanceWalletIcon />} label={t('todayGwallet')} value={dashboard.isPending ? '…' : formatMoney(today_?.gwallet ?? 0, locale)} />
+          <Kpi icon={<AccountBalanceWalletIcon />} label={t('todayGwallet')} value={tender(today_?.gwallet, ar?.gwallet)} hint={repaidHint(ar?.gwallet)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<VolunteerActivismIcon />} label={t('todayThaiplus')} value={dashboard.isPending ? '…' : formatMoney(today_?.thaiplus ?? 0, locale)} />
+          <Kpi icon={<VolunteerActivismIcon />} label={t('todayThaiplus')} value={tender(today_?.thaiplus, ar?.thaiplus)} hint={repaidHint(ar?.thaiplus)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<BadgeIcon />} label={t('todayWelfare')} value={dashboard.isPending ? '…' : formatMoney(today_?.welfare ?? 0, locale)} />
+          <Kpi icon={<BadgeIcon />} label={t('todayWelfare')} value={tender(today_?.welfare, ar?.welfare)} hint={repaidHint(ar?.welfare)} />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Kpi icon={<CreditCardIcon />} label={t('todayCard')} value={dashboard.isPending ? '…' : formatMoney(today_?.card ?? 0, locale)} />
+          <Kpi icon={<CreditCardIcon />} label={t('todayCard')} value={tender(today_?.card, ar?.card)} hint={repaidHint(ar?.card)} />
         </Grid>
       </Grid>
 

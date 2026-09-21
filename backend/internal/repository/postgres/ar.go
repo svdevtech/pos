@@ -28,10 +28,16 @@ func scanAR(row pgx.Row) (*domain.ARPayment, error) {
 	return &p, nil
 }
 
+// Insert writes one payment. A zero PaidAt means "now" by the database's clock, and the time it
+// chose is read back into p.
 func (ARRepo) Insert(ctx context.Context, storeID uuid.UUID, p *domain.ARPayment) error {
+	var at *time.Time
+	if !p.PaidAt.IsZero() {
+		at = &p.PaidAt
+	}
 	return Q(ctx).QueryRow(ctx, `INSERT INTO ar_payments (store_id, doc_no, member_id, sale_id, legacy_bill_no, bill_total, balance_before, amount, balance_after, method, paid_at, received_by, received_by_name, note)
-		VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),$6,$7,$8,$9,$10::payment_method,$11,$12,NULLIF($13,''),NULLIF($14,'')) RETURNING id`,
-		storeID, p.DocNo, p.MemberID, p.SaleID, p.LegacyBillNo, p.BillTotal, p.BalanceBefore, p.Amount, p.BalanceAfter, string(p.Method), p.PaidAt, p.ReceivedBy, p.ReceivedByName, p.Note).Scan(&p.ID)
+		VALUES ($1,NULLIF($2,''),$3,$4,NULLIF($5,''),$6,$7,$8,$9,$10::payment_method,COALESCE($11::timestamptz, now()),$12,NULLIF($13,''),NULLIF($14,'')) RETURNING id, paid_at`,
+		storeID, p.DocNo, p.MemberID, p.SaleID, p.LegacyBillNo, p.BillTotal, p.BalanceBefore, p.Amount, p.BalanceAfter, string(p.Method), at, p.ReceivedBy, p.ReceivedByName, p.Note).Scan(&p.ID, &p.PaidAt)
 }
 
 type ARFilter struct {

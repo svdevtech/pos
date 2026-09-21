@@ -56,6 +56,9 @@ export default function ReceivePaymentDialog({ open, member, bill, onClose, onSa
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [paidAt, setPaidAt] = useState('');
+  // what the date field showed when the dialog opened: left alone, the payment is stamped by the
+  // server's clock to the second, which is the clock a shift's opening time comes from too
+  const [paidAtShown, setPaidAtShown] = useState('');
   const [note, setNote] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   // the slip is photographed while the customer is still standing there, and uploaded once the
@@ -72,7 +75,9 @@ export default function ReceivePaymentDialog({ open, member, bill, onClose, onSa
     setPicked(null);
     setAmount(bill ? String(num(bill.ar_balance)) : '');
     setMethod('cash');
-    setPaidAt(dayjs().format('YYYY-MM-DDTHH:mm'));
+    const now = dayjs().format('YYYY-MM-DDTHH:mm');
+    setPaidAt(now);
+    setPaidAtShown(now);
     setNote('');
     setFormError(null);
     setSlip(null);
@@ -104,7 +109,8 @@ export default function ReceivePaymentDialog({ open, member, bill, onClose, onSa
         amount: decStr(amount),
         method,
         note: note.trim(),
-        paid_at: localDateTimeToRfc3339(paidAt),
+        // only a date the cashier changed is sent (back-dating); otherwise "now" is the server's
+        paid_at: paidAt && paidAt !== paidAtShown ? localDateTimeToRfc3339(paidAt) : undefined,
       },
       {
         onSuccess: async (rows) => {

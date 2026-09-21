@@ -39,6 +39,7 @@ import {
   type CashierSales,
   type CategorySales,
   type DailySales,
+  type PeriodSalesRow,
   type DeadStock,
   type ExpensesSummary,
   type HourlySales,
@@ -225,10 +226,24 @@ function DailySalesReport({ range, locale }: RangeProps) {
     { key: 'gwallet', label: t('cols.gwallet'), fmt: 'money' },
     { key: 'thaiplus', label: t('cols.thaiplus'), fmt: 'money' },
     { key: 'welfare', label: t('cols.welfare'), fmt: 'money' },
+    // money paid in against members' tabs: not sales (the bill was counted the day it was sold on
+    // credit) but money in the drawer and the bank, so the bank column adds it back in
+    { key: 'ar_total', label: t('cols.arTotal'), fmt: 'money' },
+    { key: 'ar_cash', label: t('cols.arCash'), fmt: 'money' },
+    { key: 'ar_transfer', label: t('cols.arTransfer'), fmt: 'money' },
+    { key: 'ar_other', label: t('cols.arOther'), fmt: 'money' },
+    { key: 'transfer_in', label: t('cols.transferIn'), fmt: 'money' },
     { key: 'cost', label: t('cols.cost'), fmt: 'money' },
     { key: 'margin', label: t('cols.margin'), fmt: 'money' },
     { key: 'margin_pct', label: t('cols.marginPct'), fmt: 'pct', width: 90 },
   ];
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const withRepayments = (r: PeriodSalesRow | undefined): Row | undefined => {
+    if (!r) return undefined;
+    const a = r.ar ?? {};
+    const other = num(a.card) + num(a.qr) + num(a.gwallet) + num(a.thaiplus) + num(a.welfare) + num(a.other);
+    return { ...r, ar_total: num(a.total), ar_cash: num(a.cash), ar_transfer: num(a.transfer), ar_other: other, transfer_in: num(r.transfer) + num(a.transfer) } as unknown as Row;
+  };
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -236,7 +251,15 @@ function DailySalesReport({ range, locale }: RangeProps) {
         <ExportButton name="daily-sales" params={params} />
       </Stack>
       <QueryError error={q.error} onRetry={() => q.refetch()} />
-      <ReportTable cols={cols} rows={(q.data?.rows ?? []) as unknown as Row[]} total={q.data?.total as unknown as Row} loading={q.isPending} locale={locale} empty={t('noRows')} keyOf={(r) => String(r.date)} />
+      <ReportTable
+        cols={cols}
+        rows={(q.data?.rows ?? []).map((r) => withRepayments(r) as Row)}
+        total={withRepayments(q.data?.total)}
+        loading={q.isPending}
+        locale={locale}
+        empty={t('noRows')}
+        keyOf={(r) => String(r.date)}
+      />
     </Stack>
   );
 }

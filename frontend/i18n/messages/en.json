@@ -165,6 +165,8 @@
     "integer": "Must be a whole number"
   },
   "dashboard": {
+    "includesRepayments": "incl. {amount} of repayments",
+    "repaidToday": "Repaid today {amount}",
     "title": "Dashboard",
     "welcome": "Welcome {name}",
     "todaySales": "Today's sales",
@@ -205,6 +207,8 @@
     "todayWelfare": "Welfare card today"
   },
   "pos": {
+    "repayments": "Repayments this shift",
+    "repaymentsCashNote": "Cash repayments are already inside \"Paid in\"; do not add them again",
     "settings": "Settings",
     "goToSettings": "Open the settings screens",
     "title": "POS",
@@ -1087,6 +1091,11 @@
     "refreshChart": "Refresh data",
     "refreshed": "Data refreshed",
     "cols": {
+      "arTotal": "Repayments",
+      "arCash": "Repaid cash",
+      "arTransfer": "Repaid transfer",
+      "arOther": "Repaid other",
+      "transferIn": "Transfers in (total)",
       "date": "Date",
       "bills": "Bills",
       "gross": "Gross",
