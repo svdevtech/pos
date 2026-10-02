@@ -81,6 +81,9 @@ type Sale struct {
 	ARPaid          decimal.Decimal `json:"ar_paid"`
 	ARBalance       decimal.Decimal `json:"ar_balance"`
 	Note            string          `json:"note,omitempty"`
+	// ClientRef is the id the till gave this cart. Two attempts to post the same cart carry the
+	// same one, and the database holds a unique index on it, so a bill can only be written once.
+	ClientRef string `json:"client_ref,omitempty"`
 	// OrderID is the F&B order the bill was cut for (the first one, when a table paid several).
 	OrderID      *uuid.UUID    `json:"order_id,omitempty"`
 	LegacyTender *int16        `json:"legacy_tender,omitempty"`

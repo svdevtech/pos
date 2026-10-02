@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 
 	"github.com/svdev/pos/internal/domain"
@@ -41,11 +42,33 @@ func scanSale(row pgx.Row) (*domain.Sale, error) {
 
 func (SaleRepo) Insert(ctx context.Context, s *domain.Sale) error {
 	return Q(ctx).QueryRow(ctx, `INSERT INTO sales (store_id, doc_no, legacy_dup_seq, sold_at, cashier_id, cashier_name, member_id, shift_id, gross, discount, bill_discount, vat, rounding, net,
-		tendered, change_amount, status, ar_status, ar_total, ar_paid, ar_balance, note, legacy_tender, legacy_id, order_id)
-		VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::sale_status,$18::ar_status,$19,$20,$21,NULLIF($22,''),$23,NULLIF($24,''),$25)
+		tendered, change_amount, status, ar_status, ar_total, ar_paid, ar_balance, note, legacy_tender, legacy_id, order_id, client_ref)
+		VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::sale_status,$18::ar_status,$19,$20,$21,NULLIF($22,''),$23,NULLIF($24,''),$25,NULLIF($26,''))
 		RETURNING id, created_at`,
 		s.StoreID, s.DocNo, s.LegacyDupSeq, s.SoldAt, s.CashierID, s.CashierName, s.MemberID, s.ShiftID, s.Gross, s.Discount, s.BillDiscount, s.VAT, s.Rounding, s.Net,
-		s.Tendered, s.Change, string(s.Status), string(s.ARStatus), s.ARTotal, s.ARPaid, s.ARBalance, s.Note, s.LegacyTender, s.LegacyID, s.OrderID).Scan(&s.ID, &s.CreatedAt)
+		s.Tendered, s.Change, string(s.Status), string(s.ARStatus), s.ARTotal, s.ARPaid, s.ARBalance, s.Note, s.LegacyTender, s.LegacyID, s.OrderID, s.ClientRef).Scan(&s.ID, &s.CreatedAt)
+}
+
+// IsDuplicateClientRef says whether an insert failed because this cart was already billed.
+func IsDuplicateClientRef(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "sales_client_ref_uq"
+}
+
+// ByClientRef finds the bill a cart was already written as, if any.
+func (r SaleRepo) ByClientRef(ctx context.Context, storeID uuid.UUID, ref string) (*domain.Sale, error) {
+	if ref == "" {
+		return nil, nil
+	}
+	var id uuid.UUID
+	err := Q(ctx).QueryRow(ctx, `SELECT id FROM sales WHERE store_id=$1 AND client_ref=$2`, storeID, ref).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.Get(ctx, storeID, id)
 }
 
 func (SaleRepo) InsertLine(ctx context.Context, storeID uuid.UUID, l *domain.SaleLine) error {

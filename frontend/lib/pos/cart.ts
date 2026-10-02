@@ -22,6 +22,9 @@ export interface CartLine {
 }
 
 export interface CartState {
+  /** This cart's own id, sent with the bill. Two attempts to pay the same cart carry the same one,
+   *  so the server writes it once however many times the till asks. A new cart gets a new id. */
+  ref: string;
   lines: CartLine[];
   member_id: string | null;
   bill_discount: number;
@@ -41,6 +44,7 @@ export interface HeldCart {
 }
 
 export const emptyCart = (): CartState => ({
+  ref: newCartRef(),
   lines: [],
   member_id: null,
   bill_discount: 0,
@@ -48,6 +52,15 @@ export const emptyCart = (): CartState => ({
   note: '',
   held_bill_id: null,
 });
+
+/** A cart id. randomUUID needs a secure context; a till on plain http falls back to a random string. */
+export function newCartRef(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
 
 let keySeq = 0;
 export function nextKey(): string {
@@ -128,6 +141,7 @@ export function toQuoteInput(cart: CartState): CreateSaleInput {
 export function toSaleInput(cart: CartState, payments: TenderInput[], terminal?: string): CreateSaleInput {
   return {
     ...toQuoteInput(cart),
+    client_ref: cart.ref,
     payments,
     note: cart.note || undefined,
     terminal,
@@ -173,6 +187,7 @@ export function fromHeldCart(raw: unknown, heldBillId: string, memberId?: string
     });
   }
   return {
+    ref: newCartRef(),
     lines,
     member_id: (typeof raw.member_id === 'string' ? raw.member_id : null) ?? memberId ?? null,
     bill_discount: dec(raw.bill_discount as string | number | undefined),

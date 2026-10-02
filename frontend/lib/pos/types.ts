@@ -106,6 +106,8 @@ export interface CreateSaleInput {
   note?: string;
   terminal?: string;
   held_bill_id?: string;
+  /** The cart's id; the server writes a cart with the same one only once (see CartState.ref). */
+  client_ref?: string;
 }
 
 export interface QuoteLine {

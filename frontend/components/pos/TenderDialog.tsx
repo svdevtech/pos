@@ -18,7 +18,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GlassButton, GlassDialog, GlassInput } from '@/components/glass';
 import NumericKeypad, { applyKey, keypadDefault, readKeypadOverride, writeKeypad, type KeypadMode } from '@/components/pos/NumericKeypad';
 import PromptPayQR from '@/components/pos/PromptPayQR';
@@ -193,8 +193,18 @@ export default function TenderDialog({
       }))
       .filter((p) => p.amount > 0 || p.method === 'cash');
 
+  // A second activation of the button a few milliseconds after the first (a bouncing mouse switch,
+  // a key repeat) used to post the cart twice: `busy` comes from React state and is still false
+  // until the screen has re-rendered, which a slow till does not manage in time. This latch is set
+  // in the same breath as the first call, so the second one finds the door already shut.
+  const sending = useRef(false);
+  useEffect(() => {
+    if (!open || busy) sending.current = false;
+  }, [open, busy]);
+
   const confirm = () => {
-    if (!s.valid || busy) return;
+    if (!s.valid || busy || sending.current) return;
+    sending.current = true;
     void onConfirm(payments(), printReceipt, slip);
   };
 

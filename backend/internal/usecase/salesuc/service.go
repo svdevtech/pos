@@ -69,9 +69,12 @@ type CreateSaleInput struct {
 	BillDiscountPct decimal.Decimal `json:"bill_discount_pct"`
 	Note            string          `json:"note,omitempty"`
 	Terminal        string          `json:"terminal,omitempty"`
-	SoldAt          *time.Time      `json:"sold_at,omitempty"` // back-dated entry (managers)
-	AllowNegative   bool            `json:"-"`
-	HeldBillID      *uuid.UUID      `json:"held_bill_id,omitempty"`
+	// ClientRef identifies the cart, not the request: a till that sends the same cart twice sends
+	// the same value, and the second attempt is answered with the bill the first one wrote.
+	ClientRef     string     `json:"client_ref,omitempty"`
+	SoldAt        *time.Time `json:"sold_at,omitempty"` // back-dated entry (managers)
+	AllowNegative bool       `json:"-"`
+	HeldBillID    *uuid.UUID `json:"held_bill_id,omitempty"`
 }
 
 // Quote prices a cart without posting (used by the POS screen for live totals).
@@ -163,7 +166,39 @@ func (s *Service) CreatePrepared(ctx context.Context, storeID uuid.UUID, actor A
 	return s.create(ctx, storeID, actor, in, &p)
 }
 
+// create posts the bill. A cart that carries a client_ref is written at most once: an attempt that
+// arrives after the bill exists, or alongside it, is answered with that same bill rather than a
+// second one. Everything the first attempt did — stock, shift cash, the drawer, AR — is rolled
+// back for the loser of the race, so the shop is left with exactly one bill and one set of effects.
 func (s *Service) create(ctx context.Context, storeID uuid.UUID, actor Actor, in CreateSaleInput, prepared *Prepared) (*domain.Sale, error) {
+	if in.ClientRef != "" {
+		existing, err := s.existingByClientRef(ctx, storeID, in.ClientRef)
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil {
+			return existing, nil
+		}
+	}
+	out, err := s.createOnce(ctx, storeID, actor, in, prepared)
+	if err != nil && in.ClientRef != "" && postgres.IsDuplicateClientRef(err) {
+		// the other attempt committed first; hand back its bill
+		return s.existingByClientRef(ctx, storeID, in.ClientRef)
+	}
+	return out, err
+}
+
+func (s *Service) existingByClientRef(ctx context.Context, storeID uuid.UUID, ref string) (*domain.Sale, error) {
+	var out *domain.Sale
+	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
+		var err error
+		out, err = s.sales.ByClientRef(ctx, storeID, ref)
+		return err
+	})
+	return out, err
+}
+
+func (s *Service) createOnce(ctx context.Context, storeID uuid.UUID, actor Actor, in CreateSaleInput, prepared *Prepared) (*domain.Sale, error) {
 	var out *domain.Sale
 	err := s.db.WithTx(ctx, postgres.Scope{StoreID: storeID}, func(ctx context.Context, _ pgx.Tx) error {
 		var lines []CartLine
@@ -221,6 +256,7 @@ func (s *Service) create(ctx context.Context, storeID uuid.UUID, actor Actor, in
 			StoreID: storeID, DocNo: docNo, SoldAt: soldAt, CashierID: actor.idPtr(), CashierName: actor.Name,
 			Gross: tot.Gross, Discount: tot.LineDiscount.Add(tot.BillDiscount), BillDiscount: tot.BillDiscount, Rounding: tot.Rounding, Net: tot.Net,
 			Tendered: settle.Tendered, Change: settle.Change, Status: domain.SaleCompleted, ARStatus: domain.ARNone, Note: in.Note,
+			ClientRef: in.ClientRef,
 		}
 		if member != nil {
 			sale.MemberID = &member.ID
