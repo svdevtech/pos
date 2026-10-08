@@ -7,7 +7,8 @@
  *
  * Printers without a DK socket drive the drawer through a USB-serial kicker box instead. Those
  * shops pick "serial" and the browser pulses the box directly (lib/pos/serialDrawer.ts) — nothing
- * is printed. Shops with no drawer at all pick "off" and only the event is recorded.
+ * is printed. A shop with no drawer, or one not ready to use it, picks "off": the till then has no
+ * drawer button and no F10 at all, and nothing is printed or pulsed.
  */
 
 import type { Locale } from '@/i18n/config';

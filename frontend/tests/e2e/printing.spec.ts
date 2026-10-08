@@ -158,17 +158,24 @@ test('opening the drawer prints the slip that pops it, and records the event', a
   expect(doc?.css).toContain('size:80mm');
 });
 
-test('a shop with no drawer wired to the printer prints nothing', async ({ page }) => {
+test('a till set to "no cash drawer" has none: no button, no F10, nothing printed', async ({ page }) => {
   const captured = await mockApi(page, { drawerKick: 'off' });
   await page.goto('/pos');
   await page.getByTestId('scan-input').waitFor();
   await armPrintCapture(page);
-  await page.keyboard.press('F10');
 
-  // the event is still recorded — only the paper is skipped
-  await expect.poll(() => captured.drawerCalls.length, { timeout: 10_000 }).toBe(1);
+  await expect(page.getByTestId('open-drawer')).toHaveCount(0);
+  await page.keyboard.press('F10');
   await page.waitForTimeout(1500);
+  expect(captured.drawerCalls.length).toBe(0);
   expect(await printed(page)).toBeNull();
+});
+
+test('a till with a drawer still offers the button', async ({ page }) => {
+  await mockApi(page, { drawerKick: 'print' });
+  await page.goto('/pos');
+  await page.getByTestId('scan-input').waitFor();
+  await expect(page.getByTestId('open-drawer')).toBeVisible();
 });
 
 test('a printed slip ends with blank paper so the cutter misses the last line', async ({ page }) => {

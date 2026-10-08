@@ -340,6 +340,11 @@ export default function PosPage() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
+  // ตั้งค่า → ใบเสร็จ → ลิ้นชัก set to "ไม่มีลิ้นชัก" takes the drawer off this till completely: no
+  // button, no F10, nothing pulsed or printed. Switching the setting back brings it all straight
+  // back, so a shop waiting for its drawer to be wired up does not need a new version.
+  const hasDrawer = drawerKickMode(settings.data) !== 'off';
+
   const openDrawer = useMutation({
     mutationFn: () => posApi.drawer({ reason: 'no_sale' }),
     onSuccess: () => {
@@ -458,7 +463,7 @@ export default function PosPage() {
           break;
         case 'F10':
           e.preventDefault();
-          if (!anyDialogOpen) openDrawer.mutate();
+          if (!anyDialogOpen && hasDrawer) openDrawer.mutate();
           break;
         default:
           break;
@@ -466,7 +471,7 @@ export default function PosPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [anyDialogOpen, cart.lines.length, cancelLast, startTender, openDrawer]);
+  }, [anyDialogOpen, cart.lines.length, cancelLast, startTender, openDrawer, hasDrawer]);
 
   // ----- render ------------------------------------------------------------
   const itemCount = cartItemCount(cart.lines);
@@ -563,11 +568,13 @@ export default function PosPage() {
             </span>
           </Tooltip>
         )}
-        <Tooltip title={`${t('openDrawer')} (F10)`}>
-          <GlassButton variant="outlined" size="small" startIcon={<PointOfSaleIcon />} onClick={() => openDrawer.mutate()} loading={openDrawer.isPending}>
-            {t('openDrawer')}
-          </GlassButton>
-        </Tooltip>
+        {hasDrawer && (
+          <Tooltip title={`${t('openDrawer')} (F10)`}>
+            <GlassButton variant="outlined" size="small" startIcon={<PointOfSaleIcon />} onClick={() => openDrawer.mutate()} loading={openDrawer.isPending} data-testid="open-drawer">
+              {t('openDrawer')}
+            </GlassButton>
+          </Tooltip>
+        )}
         {canManage && (
           <Tooltip title={t('goToSettings')}>
             <GlassButton
@@ -644,7 +651,7 @@ export default function PosPage() {
               {totalsCard}
               {payButton}
               <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                {t('hotkeysHint')}
+                {hasDrawer ? t('hotkeysHint') : t('hotkeysHintNoDrawer')}
               </Typography>
             </Stack>
           </Box>
